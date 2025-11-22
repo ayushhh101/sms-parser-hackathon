@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { requestPermissions, checkPermissions, fetchSMS, startSmsListener, getStats } from './src/smsService';
-import { formatMoney, timeAgo } from './src/smsParser';
+import { formatMoney, timeAgo, parseSMS } from './src/smsParser';
+import { DEMO_SMS, generateRandomDemoSMS, DEMO_INSIGHTS } from './src/demoData';
 
 // Colors
 const C = {
@@ -114,22 +115,21 @@ export default function App() {
   const [filter, setFilter] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ totalIn: 0, totalOut: 0, totalCashback: 0, count: 0 });
+  const [demoMode, setDemoMode] = useState(false);
+  const [currentInsight, setCurrentInsight] = useState(0);
 
-  // Check permissions on mount
+  // Check permissions on mount - Auto-load demo for hackathon
   useEffect(() => {
-    (async () => {
-      let granted = await checkPermissions();
-      if (!granted) granted = await requestPermissions();
-      setHasPermission(granted);
-      if (granted) loadSMS();
-    })();
+    // Automatically load demo data for hackathon
+    setHasPermission(true);
+    loadDemoData();
   }, []);
 
   // Start listener for new SMS
   useEffect(() => {
-    if (!hasPermission) return;
+    if (!hasPermission || demoMode) return;
     
-    const unsubscribe = startSmsListener((newMsg) => {
+    const subscription = startSmsListener((newMsg) => {
       setTransactions(prev => {
         const updated = [newMsg, ...prev];
         setStats(getStats(updated));
@@ -145,8 +145,12 @@ export default function App() {
       }
     });
 
-    return unsubscribe;
-  }, [hasPermission]);
+    return () => {
+      if (subscription && subscription.remove) {
+        subscription.remove();
+      }
+    };
+  }, [hasPermission, demoMode]);
 
   // Apply filter
   useEffect(() => {
@@ -166,6 +170,33 @@ export default function App() {
     } catch (e) {
       console.log('Load error:', e);
     }
+  };
+
+  // Load demo data
+  const loadDemoData = () => {
+    const demoTransactions = DEMO_SMS.map(sms => 
+      parseSMS(sms.body, sms.sender, sms.timestamp)
+    );
+    setTransactions(demoTransactions);
+    setStats(getStats(demoTransactions));
+    setDemoMode(true);
+  };
+
+  // Add random demo SMS
+  const addRandomDemo = () => {
+    const newSms = generateRandomDemoSMS();
+    const parsed = parseSMS(newSms.body, newSms.sender, newSms.timestamp);
+    setTransactions(prev => {
+      const updated = [parsed, ...prev];
+      setStats(getStats(updated));
+      return updated;
+    });
+    Alert.alert('📩 New Demo SMS', `From: ${newSms.sender}\n${newSms.body.substring(0, 80)}...`);
+  };
+
+  // Cycle insights
+  const showNextInsight = () => {
+    setCurrentInsight((prev) => (prev + 1) % DEMO_INSIGHTS.length);
   };
 
   // Pull to refresh
@@ -198,6 +229,21 @@ export default function App() {
             }}>
               <Text style={s.btnText}>Grant Permission</Text>
             </TouchableOpacity>
+            
+            {/* Demo Mode Option */}
+            <View style={s.divider}>
+              <View style={s.line} />
+              <Text style={s.dividerText}>OR</Text>
+              <View style={s.line} />
+            </View>
+            
+            <TouchableOpacity style={s.demoBtn} onPress={() => {
+              setHasPermission(true);
+              loadDemoData();
+            }}>
+              <Text style={s.demoBtnText}>🎯 Try Demo Mode (Hackathon)</Text>
+            </TouchableOpacity>
+            <Text style={s.demoHint}>See how it works with sample gig worker data</Text>
           </View>
         </SafeAreaView>
       </SafeAreaProvider>
@@ -227,9 +273,24 @@ export default function App() {
         
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.logo}>💰 SMS Parser</Text>
-          <Text style={s.count}>{transactions.length} transactions</Text>
+          <View>
+            <Text style={s.logo}>💰 {demoMode ? 'Demo Mode' : 'SMS Parser'}</Text>
+            <Text style={s.count}>{transactions.length} transactions</Text>
+          </View>
+          {demoMode && (
+            <TouchableOpacity style={s.addDemoBtn} onPress={addRandomDemo}>
+              <Text style={s.addDemoText}>+ Add Demo SMS</Text>
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* Demo Insight Banner */}
+        {/* {demoMode && (
+          <TouchableOpacity style={s.insightBanner} onPress={showNextInsight}>
+            <Text style={s.insightText}>{DEMO_INSIGHTS[currentInsight].message}</Text>
+            <Text style={s.insightHint}>Tap for next insight</Text>
+          </TouchableOpacity>
+        )} */}
 
         <Stats stats={stats} />
         <Filters active={filter} onSelect={setFilter} />
@@ -247,6 +308,11 @@ export default function App() {
             <View style={s.center}>
               <Text style={s.bigEmoji}>📭</Text>
               <Text style={s.subtitle}>No transactions found</Text>
+              {demoMode && (
+                <TouchableOpacity style={s.btn} onPress={addRandomDemo}>
+                  <Text style={s.btnText}>Add Demo Transaction</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />
@@ -304,4 +370,17 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 15, color: C.gray, textAlign: 'center' },
   btn: { backgroundColor: C.purple, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 12, marginTop: 24 },
   btnText: { fontSize: 16, fontWeight: '600', color: C.white },
+  
+  // Demo Mode
+  divider: { flexDirection: 'row', alignItems: 'center', marginTop: 32, marginBottom: 16, width: '100%' },
+  line: { flex: 1, height: 1, backgroundColor: C.border },
+  dividerText: { marginHorizontal: 16, color: C.gray, fontSize: 13 },
+  demoBtn: { backgroundColor: C.card, borderWidth: 2, borderColor: C.purple, borderStyle: 'dashed', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 12 },
+  demoBtnText: { fontSize: 16, fontWeight: '600', color: C.purple },
+  demoHint: { fontSize: 12, color: C.gray, marginTop: 8, textAlign: 'center' },
+  addDemoBtn: { backgroundColor: C.purple + '30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  addDemoText: { fontSize: 12, fontWeight: '600', color: C.purple },
+  insightBanner: { backgroundColor: C.purple + '20', borderLeftWidth: 4, borderColor: C.purple, padding: 12, marginHorizontal: 12, marginBottom: 8, borderRadius: 8 },
+  insightText: { fontSize: 14, fontWeight: '600', color: C.white, marginBottom: 4 },
+  insightHint: { fontSize: 11, color: C.gray, fontStyle: 'italic' },
 });
