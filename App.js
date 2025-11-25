@@ -2,10 +2,19 @@ import React from 'react';
 import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+
 import DashboardScreen from './src/screens/DashboardScreen';
 import TestScreen from './src/screens/TestScreen';
+import Onboarding from './src/screens/Onboarding';
+import LoginScreen from './src/screens/LoginScreen';
+import OTPVerificationScreen from './src/screens/OTPVerificationScreen';
+import ProfileSetupScreen from './src/screens/ProfileSetupScreen';
+import PermissionsScreen from './src/screens/PermissionsScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 // Colors for consistent theming
 const C = {
@@ -20,48 +29,174 @@ const C = {
   gray: '#888',
 };
 
+
+
+function HomeTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: C.card,
+          borderTopColor: C.border,
+          borderTopWidth: 1,
+          height: 60,
+          paddingBottom: 8,
+        },
+        tabBarActiveTintColor: C.purple,
+        tabBarInactiveTintColor: C.gray,
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
+      }}
+    >
+      <Tab.Screen 
+        name="Dashboard" 
+        component={DashboardScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ fontSize: size, color }}>💰</Text>
+          ),
+          tabBarLabel: 'Dashboard'
+        }}
+      />
+      <Tab.Screen 
+        name="ProfileSetupScreen" 
+        component={ProfileSetupScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ fontSize: size, color }}>💰</Text>
+          ),
+          tabBarLabel: 'ProfileSetupScreen'
+        }}
+      />
+      <Tab.Screen 
+        name="Test" 
+        component={TestScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ fontSize: size, color }}>🧪</Text>
+          ),
+          tabBarLabel: 'Test'
+        }}
+      />
+      <Tab.Screen 
+        name="PermissionsScreen" 
+        component={PermissionsScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ fontSize: size, color }}>🧪</Text>
+          ),
+          tabBarLabel: 'PermissionsScreen'
+        }}
+      />
+      
+    </Tab.Navigator>
+  );
+}
+
+// --- 2. Main App Component (Stack Navigator) ---
 export default function App() {
+  // Logic here would typically check if the user is logged in
+  // For now, we set the initial route to 'Onboarding'
+
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: C.card,
-            borderTopColor: C.border,
-            borderTopWidth: 1,
-            height: 60,
-            paddingBottom: 8,
-          },
-          tabBarActiveTintColor: C.purple,
-          tabBarInactiveTintColor: C.gray,
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-          },
-        }}
+      <Stack.Navigator 
+        initialRouteName="Onboarding" // Start here
+        screenOptions={{ headerShown: false }} // No header on any screen
       >
-        <Tab.Screen 
-          name="Dashboard" 
-          component={DashboardScreen}
-          options={{
-            tabBarIcon: ({ color, size }) => (
-              <Text style={{ fontSize: size, color }}>💰</Text>
-            ),
-            tabBarLabel: 'Dashboard'
-          }}
-        />
-        <Tab.Screen 
-          name="Test" 
-          component={TestScreen}
-          options={{
-            tabBarIcon: ({ color, size }) => (
-              <Text style={{ fontSize: size, color }}>🧪</Text>
-            ),
-            tabBarLabel: 'Test'
-          }}
-        />
-      </Tab.Navigator>
+        {/* Screens WITHOUT Tabs (The Authentication Flow) */}
+        <Stack.Screen name="Onboarding" component={Onboarding} />
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="OTP" component={OTPVerificationScreen} />
+
+        {/* The screen WITH Tabs (The Main App) */}
+        {/* We call the Tab Navigator component here. When the user navigates here, 
+            the tabs will appear below the HomeTabs content. */}
+        <Stack.Screen name="Home" component={HomeTabs} />
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
+
+
+// export default function App() {
+//   return (
+//     <NavigationContainer>
+//       <Tab.Navigator
+//         screenOptions={{
+//           headerShown: false,
+//           tabBarStyle: {
+//             backgroundColor: C.card,
+//             borderTopColor: C.border,
+//             borderTopWidth: 1,
+//             height: 60,
+//             paddingBottom: 8,
+//           },
+//           tabBarActiveTintColor: C.purple,
+//           tabBarInactiveTintColor: C.gray,
+//           tabBarLabelStyle: {
+//             fontSize: 12,
+//             fontWeight: '600',
+//           },
+//         }}
+//       >
+//         <Tab.Screen 
+//           name="Dashboard" 
+//           component={DashboardScreen}
+//           options={{
+//             tabBarIcon: ({ color, size }) => (
+//               <Text style={{ fontSize: size, color }}>💰</Text>
+//             ),
+//             tabBarLabel: 'Dashboard'
+//           }}
+//         />
+//         <Tab.Screen 
+//           name="Test" 
+//           component={TestScreen}
+//           options={{
+//             tabBarIcon: ({ color, size }) => (
+//               <Text style={{ fontSize: size, color }}>🧪</Text>
+//             ),
+//             tabBarLabel: 'Test'
+//           }}
+//         />
+//         <Tab.Screen 
+//           name="Onboarding" 
+//           component={Onboarding}
+//           options={{
+//             tabBarIcon: ({ color, size }) => (
+//               <Text style={{ fontSize: size, color }}>🧪</Text>
+//             ),
+//             tabBarLabel: 'Onboarding'
+//           }}
+//         />
+//         <Tab.Screen 
+//           name="Login" 
+//           component={LoginScreen}
+//           options={{
+//             tabBarIcon: ({ color, size }) => (
+//               <Text style={{ fontSize: size, color }}>🧪</Text>
+//             ),
+//             tabBarLabel: 'Login'
+//           }}
+//         />
+//         <Tab.Screen 
+//           name="OTP" 
+//           component={OTPVerificationScreen}
+//           options={{
+//             tabBarIcon: ({ color, size }) => (
+//               <Text style={{ fontSize: size, color }}>🧪</Text>
+//             ),
+//             tabBarLabel: 'OTP'
+//           }}
+//         />
+//       </Tab.Navigator>
+//     </NavigationContainer>
+//   );
+// }
+
+// --- 1. Tab Navigator Component (Screens with Tabs) ---
