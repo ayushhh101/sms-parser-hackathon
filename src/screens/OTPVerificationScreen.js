@@ -82,7 +82,7 @@ export default function OTPVerificationScreen({ route }) {
         Alert.alert("Success", "Login successful!", [
           {
             text: "OK",
-            onPress: () => navigation.navigate("Dashboard"),
+            onPress: () => navigation.navigate("Home"),
           },
         ]);
       } else {

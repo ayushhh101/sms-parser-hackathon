@@ -127,14 +127,13 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator 
-        initialRouteName="Home" // Start here
+        initialRouteName="Onboarding" // Start here
         screenOptions={{ headerShown: false }} // No header on any screen
       >
         {/* Screens WITHOUT Tabs (The Authentication Flow) */}
         <Stack.Screen name="Onboarding" component={Onboarding} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
-        <Stack.Screen name="Dashboard" component={DashboardScreen} />
         <Stack.Screen name="SMSParser" component={SMSParserScreen} />
 
         {/* The screen WITH Tabs (The Main App) */}

@@ -35,10 +35,18 @@ export default function DashboardScreen() {
         setUserData(JSON.parse(storedUserData));
       } else {
         // If no user data, redirect to login
-        navigation.navigate('Login');
+        console.log('No user data found, redirecting to login');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Onboarding' }],
+        });
       }
     } catch (error) {
       console.error("Error loading user data:", error);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Onboarding' }],
+      });
     } finally {
       setLoading(false);
     }
@@ -48,11 +56,20 @@ export default function DashboardScreen() {
     setRefreshing(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      if (!token) {
-        throw new Error("No token found");
+      const storedUserData = await AsyncStorage.getItem("userData");
+      
+      if (!token || !storedUserData) {
+        throw new Error("No token or user data found");
       }
 
-      const response = await fetch(getApiUrl('/user/profile'), {
+      const userData = JSON.parse(storedUserData);
+      const userId = userData.userId || userData._id;
+      
+      if (!userId) {
+        throw new Error("No user ID found");
+      }
+
+      const response = await fetch(getApiUrl(`/users/${userId}`), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -60,17 +77,24 @@ export default function DashboardScreen() {
         },
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      
+      // Check if response is HTML (error page)
+      if (responseText.startsWith('<')) {
+        throw new Error('Server returned HTML instead of JSON. Check if backend is running.');
+      }
+      
+      const data = JSON.parse(responseText);
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         setUserData(data.user);
         await AsyncStorage.setItem("userData", JSON.stringify(data.user));
       } else {
-        throw new Error(data.message || "Failed to fetch user data");
+        throw new Error(data.error || "Failed to fetch user data");
       }
     } catch (error) {
       console.error("Refresh error:", error);
-      Alert.alert("Error", "Failed to refresh user data");
+      Alert.alert("Error", `Failed to refresh user data: ${error.message}`);
     } finally {
       setRefreshing(false);
     }
@@ -91,7 +115,10 @@ export default function DashboardScreen() {
           onPress: async () => {
             try {
               await AsyncStorage.multiRemove(["userToken", "userData"]);
-              navigation.navigate("Login");
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Onboarding' }],
+              });
             } catch (error) {
               console.error("Logout error:", error);
             }
