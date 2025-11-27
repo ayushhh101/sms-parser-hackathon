@@ -1,8 +1,13 @@
 import React from 'react';
+import "./global.css";
 import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import GoalsScreen from './src/screens/GoalsScreen';
+import ChatScreen from './src/screens/ChatScreen';
+import CaptureScreen from './src/screens/CaptureScreen';
 
 
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -51,7 +56,7 @@ function HomeTabs() {
         },
       }}
     >
-      <Tab.Screen 
+      {/* <Tab.Screen 
         name="Dashboard" 
         component={DashboardScreen}
         options={{
@@ -60,37 +65,53 @@ function HomeTabs() {
           ),
           tabBarLabel: 'Dashboard'
         }}
-      />
+      /> */}
       <Tab.Screen 
-        name="ProfileSetupScreen" 
-        component={ProfileSetupScreen}
+        name="Dashboard" 
+        component={DashboardScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>💰</Text>
+            <Ionicons name="home" size={size} color={color} />
           ),
-          tabBarLabel: 'ProfileSetupScreen'
+          tabBarLabel: 'Dashboard'
         }}
       />
+
       <Tab.Screen 
-        name="Test" 
-        component={TestScreen}
+        name="Goals" 
+        component={GoalsScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>🧪</Text>
+            <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />
           ),
-          tabBarLabel: 'Test'
+          tabBarLabel: 'Goals'
         }}
       />
+
       <Tab.Screen 
-        name="PermissionsScreen" 
-        component={PermissionsScreen}
+        name="Coach" 
+        component={ChatScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>🧪</Text>
+            <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
           ),
-          tabBarLabel: 'PermissionsScreen'
+          tabBarLabel: 'Coach'
         }}
       />
+
+      <Tab.Screen 
+        name="Capture" 
+        component={CaptureScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="mic-outline" size={size} color={color} />
+          ),
+          tabBarLabel: 'Capture'
+        }}
+      />
+      
+      
+      
       
     </Tab.Navigator>
   );
@@ -104,7 +125,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator 
-        initialRouteName="Onboarding" // Start here
+        initialRouteName="Home" // Start here
         screenOptions={{ headerShown: false }} // No header on any screen
       >
         {/* Screens WITHOUT Tabs (The Authentication Flow) */}
