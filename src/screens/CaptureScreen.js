@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, StatusBar, TextInput, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { getApiUrl } from '../utils/apiConfig';
 
 
 const QUICK_AMOUNTS = [50, 100, 200, 500, 1000];
@@ -75,60 +76,103 @@ export default function CaptureScreen() {
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState('SMS'); // Default to SMS for the Demo
   
+  const [loading, setLoading] = useState(false);
+
+
+
   // Manual Form State
   const [txType, setTxType] = useState('paid');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('food');
   const [paymentMode, setPaymentMode] = useState('upi');
+  const [manualEntries, setManualEntries] = useState([]);
+  const [filter, setFilter] = useState("all");
 
-  
+  //save the logs to DB
   const handleSave = async () => {
-    if (!amount) {
-      Alert.alert("Error", "Please enter an amount");
-      return;
-    }
+  if (!amount || Number(amount) <= 0) {
+    Alert.alert("Error", "Enter a valid amount");
+    return;
+  }
 
-  
-    const syntheticText = `${txType === 'received' ? 'Received' : 'Paid'} ${amount} for ${selectedCategory} via ${paymentMode}. ${note}`;
+  setLoading(true);
 
-    
-    const payload = {
-      userId: "101",
-      smsText: syntheticText,
-      timestamp: new Date().toISOString()
-    };
+  const userId = "usr_rahul_001";  // replace with your real user id later
+  const clientLocalId = `cl_${Date.now()}`;
+  const txId = `tx_${Date.now()}`;
 
-   
-    console.log("🚀 CAPTURE SENDING:", JSON.stringify(payload, null, 2));
+  // convert rupees → paise
+  const amountPaise = Math.round(Number(amount) * 100);
 
-    // ---------------------------------------------------------
-    //  UNCOMMENT ON SUNDAY (Real Backend) 
-    // ---------------------------------------------------------
-    /*
-    try {
-      const response = await fetch('http://192.168.1.5:5000/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        Alert.alert("Success", "Saved to Database! ✅");
-        setAmount('');
-        setNote('');
-      } else {
-        Alert.alert("Error", "Server rejected it ❌");
-      }
-    } catch (error) {
-      Alert.alert("Error", "Server is offline ⚠️");
-    }
-    */
-    // ---------------------------------------------------------
-    
-    // Temp feedback for Demo
-    Alert.alert("Sent!", `Backend will parse: \n"${syntheticText}"`);
+  const payload = {
+    txId,
+    userId,
+    clientLocalId,
+    type: txType === "paid" ? "expense" : txType === "received" ? "income" : "transfer",
+    amountPaise,
+    category: selectedCategory,
+    merchant: note?.trim() ? note.trim() : null, // optional
+    method: paymentMode,  // cash | upi | card
+    source: "manual",
+    timestamp: new Date().toISOString(),
+    notes: note || "",
+    synced: false,
+    parserMeta: {}
   };
+
+  console.log("FINAL PAYLOAD:", payload);
+
+  try {
+    const backendURL = getApiUrl("/transactions/manual");
+
+    const res = await fetch(backendURL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      Alert.alert("Saved!", "Entry added successfully");
+      setAmount("");
+      setNote("");
+    } else {
+      Alert.alert("Error", data.message || "Failed to save");
+    }
+
+  } catch (err) {
+    console.error(err);
+    Alert.alert("Network Error", "Cannot reach server");
+  }
+
+  await fetchManualEntries();
+  setLoading(false);
+};
+
+
+//retrive manual logs with filters
+const fetchManualEntries = async () => {
+  try {
+    const url = getApiUrl(`/transactions/manual-logs?userId=usr_rahul_001&filter=${filter}`);
+
+    const res = await fetch(url);
+    console.log(res)
+    const data = await res.json();
+
+    if (res.ok) {
+      setManualEntries(data.transactions || []);
+    }
+  } catch (err) {
+    console.log("Fetch error:", err);
+  }
+};
+
+React.useEffect(() => {
+  fetchManualEntries();
+}, [filter]);
+
 
   return (
     <SafeAreaView className="flex-1 bg-[#0F172A]">
@@ -295,6 +339,71 @@ export default function CaptureScreen() {
             <TouchableOpacity onPress={handleSave} className="bg-[#10B981] py-4 rounded-xl mt-6 items-center shadow-lg shadow-emerald-900/50">
               <Text className="text-white font-bold text-lg">Save Entry</Text>
             </TouchableOpacity>
+
+            {/* RECENT MANUAL ENTRIES */}
+            <View className="mt-8">
+
+              {/* FILTER BUTTONS */}
+              <View className="flex-row mb-4 bg-slate-800 p-1 rounded-xl">
+                {["all", "week", "month"].map((f) => (
+                  <TouchableOpacity
+                    key={f}
+                    onPress={() => setFilter(f)}
+                    className={`flex-1 py-2 rounded-lg items-center ${
+                      filter === f ? "bg-slate-700" : "bg-transparent"
+                    }`}
+                  >
+                    <Text
+                      className={`font-medium ${
+                        filter === f ? "text-white" : "text-slate-400"
+                      }`}
+                    >
+                      {f === "all" ? "All" : f === "week" ? "1 Week" : "1 Month"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text className="text-white font-bold text-lg mb-3">
+                Recent Manual Entries
+              </Text>
+
+              {manualEntries.length === 0 && (
+                <Text className="text-slate-500 text-center py-4">
+                  No manual entries found
+                </Text>
+              )}
+
+              {/* ENTRY LIST */}
+              {manualEntries.map((item) => (
+                <View
+                  key={item.txId}
+                  className="bg-[#1E293B] p-4 rounded-2xl mb-4 border-l-4 border-emerald-500"
+                >
+                  <View className="flex-row justify-between items-center mb-2">
+                    <Text className="text-white font-bold capitalize">
+                      {item.category}
+                    </Text>
+
+                    <Text className="text-emerald-400 font-bold">
+                      ₹{(item.amountPaise / 100).toFixed(2)}
+                    </Text>
+                  </View>
+
+                  <Text className="text-slate-400 text-xs">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </Text>
+
+                  {item.notes ? (
+                    <Text className="text-slate-500 text-xs italic mt-1">
+                      {item.notes}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+
+            </View>
+
           </View>
         )}
 
