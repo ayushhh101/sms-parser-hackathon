@@ -6,23 +6,30 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Keyboard,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getApiUrl } from '../utils/apiConfig';
 
-// Mock phone number passed from LoginScreen
-const MOCK_PHONE_NUMBER = "+91 8452983033"; 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 4; // Changed to 4 digits
 
-export default function OTPVerificationScreen() {
+export default function OTPVerificationScreen({ route }) {
   const [otp, setOtp] = useState(new Array(OTP_LENGTH).fill(""));
   const [timer, setTimer] = useState(30);
+  const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const inputRefs = useRef([]);
   const navigation = useNavigation();
-  // --- OTP Logic ---
+  
+  // Get phone number from route params
+  const { phoneNumber, demoOtp } = route.params || {};
+  const displayPhone = phoneNumber || "+91 XXXXXXXXXX";
 
+  // --- OTP Logic ---
   const handleChange = (text, index) => {
     // Only allow one digit
     if (text.length > 1) return;
@@ -45,18 +52,54 @@ export default function OTPVerificationScreen() {
     }
   };
 
-  const verifyOtp = () => {
+  const verifyOtp = async () => {
     const fullOtp = otp.join('');
-    if (fullOtp.length === OTP_LENGTH) {
-      Keyboard.dismiss();
-      console.log("Verifying OTP:", fullOtp);
-      // Logic to navigate to the next screen (e.g., Home/Dashboard)
-      navigation.navigate('Home')
+    if (fullOtp.length !== OTP_LENGTH) {
+      Alert.alert("Error", `Please enter a ${OTP_LENGTH}-digit OTP`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(getApiUrl('/auth/verify-otp'), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: `+91${phoneNumber}`,
+          otp: fullOtp,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Store user data in AsyncStorage
+        await AsyncStorage.setItem("userToken", data.token);
+        await AsyncStorage.setItem("userData", JSON.stringify(data.user));
+        
+        Alert.alert("Success", "Login successful!", [
+          {
+            text: "OK",
+            onPress: () => navigation.navigate("Dashboard"),
+          },
+        ]);
+      } else {
+        Alert.alert("Error", data.message || "Invalid OTP. Please try again.");
+        // Clear OTP on error
+        setOtp(new Array(OTP_LENGTH).fill(""));
+        inputRefs.current[0].focus();
+      }
+    } catch (error) {
+      console.error("OTP verification error:", error);
+      Alert.alert("Error", "Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
     }
   };
 
   // --- Resend Timer Logic ---
-
   useEffect(() => {
     let interval = null;
     if (timer > 0) {
@@ -69,11 +112,35 @@ export default function OTPVerificationScreen() {
     return () => clearInterval(interval);
   }, [timer]);
 
-  const resendOtp = () => {
-    setTimer(30); // Reset timer
-    setOtp(new Array(OTP_LENGTH).fill("")); // Clear OTP inputs
-    inputRefs.current[0].focus(); // Focus the first input
-    console.log("Resending OTP...");
+  const resendOtp = async () => {
+    setResendLoading(true);
+    try {
+      const response = await fetch(getApiUrl('/auth/send-otp'), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: `+91${phoneNumber}`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert("Success", `OTP sent successfully!\n\nDemo OTP: ${data.otp}`);
+        setTimer(30); // Reset timer
+        setOtp(new Array(OTP_LENGTH).fill("")); // Clear OTP inputs
+        inputRefs.current[0].focus(); // Focus the first input
+      } else {
+        Alert.alert("Error", data.message || "Failed to resend OTP");
+      }
+    } catch (error) {
+      console.error("Resend OTP error:", error);
+      Alert.alert("Error", "Network error. Please check your connection.");
+    } finally {
+      setResendLoading(false);
+    }
   };
   
   const isOtpComplete = otp.every(digit => digit !== "");
@@ -84,25 +151,30 @@ export default function OTPVerificationScreen() {
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Back Button */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color="#b8b9c8" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Shield Icon Container */}
       <View style={styles.iconContainer}>
-        <Ionicons name="shield-outline" size={32} color="white" />
+        <Ionicons name="shield-checkmark-outline" size={32} color="white" />
       </View>
 
       {/* Title and Subtitle */}
       <Text style={styles.title}>Verify OTP</Text>
       <Text style={styles.subtitle}>
-        Enter the 6-digit code sent to
+        Enter the {OTP_LENGTH}-digit code sent to
       </Text>
-      <Text style={styles.phoneNumberText}>{MOCK_PHONE_NUMBER}</Text>
+      <Text style={styles.phoneNumber}>{displayPhone}</Text>
+
+      {/* Demo OTP Display */}
+      {demoOtp && (
+        <View style={styles.demoBox}>
+          <Ionicons name="information-circle-outline" size={18} color="#7f93ff" />
+          <Text style={styles.demoText}>
+            Demo OTP: <Text style={styles.demoOtp}>{demoOtp}</Text>
+          </Text>
+        </View>
+      )}
+
+      {/* OTP Label */}
+      <Text style={styles.label}>Enter OTP</Text>
 
       {/* OTP Input Boxes */}
       <View style={styles.otpContainer}>
@@ -116,6 +188,8 @@ export default function OTPVerificationScreen() {
             onKeyPress={(e) => handleKeyPress(e, index)}
             keyboardType="numeric"
             maxLength={1}
+            placeholder="0"
+            placeholderTextColor="#6c7385"
             caretHidden={true} // Hides the cursor, standard for OTP boxes
           />
         ))}
@@ -124,36 +198,53 @@ export default function OTPVerificationScreen() {
       {/* Resend Timer/Button */}
       <TouchableOpacity 
         onPress={resendOtp} 
-        disabled={timer > 0}
-        style={{ marginVertical: 20 }}
+        disabled={timer > 0 || resendLoading}
+        style={styles.resendButtonContainer}
       >
-        <Text style={[styles.resendText, timer > 0 && styles.disabledText]}>
-          {timer > 0 ? `Resend OTP in ${timer}s` : "Resend OTP"}
+        <Text style={[styles.resendText, (timer > 0 || resendLoading) && styles.disabledText]}>
+          {resendLoading 
+            ? "Sending..." 
+            : timer > 0 
+              ? `Resend OTP in ${timer}s` 
+              : "Resend OTP"
+          }
         </Text>
       </TouchableOpacity>
       
       {/* Security Warning Box */}
-      <View style={styles.warningBox}>
-        <Ionicons name="shield-checkmark-outline" size={18} color="#ff8b3d" />
-        <Text style={styles.warningText}>
-          <Text style={{fontWeight: '700'}}>Never share your OTP with anyone.</Text> FinTrack will never ask for it.
+      <View style={styles.infoBox}>
+        <Ionicons name="shield-checkmark-outline" size={18} color="#7f93ff" />
+        <Text style={styles.infoText}>
+          <Text style={{fontWeight: '700'}}>Never share your OTP with anyone.</Text> We will never ask for it.
         </Text>
       </View>
 
       {/* Verify Button */}
       <TouchableOpacity 
-        style={styles.buttonWrapper} 
+        style={[styles.buttonWrapper, (!isOtpComplete || loading) && styles.disabledButton]} 
         onPress={verifyOtp}
-        disabled={!isOtpComplete}
+        disabled={!isOtpComplete || loading}
       >
         <LinearGradient
           colors={["#6d4cff", "#9b4dff"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={[styles.button, !isOtpComplete && styles.disabledButton]}
+          style={styles.button}
         >
-          <Text style={styles.buttonText}>Verify & Continue</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <Text style={styles.buttonText}>Verify & Continue</Text>
+          )}
         </LinearGradient>
+      </TouchableOpacity>
+
+      {/* Back to Login */}
+      <TouchableOpacity 
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Text style={styles.backText}>← Back to Login</Text>
       </TouchableOpacity>
 
       {/* Footer Text */}
@@ -165,9 +256,9 @@ export default function OTPVerificationScreen() {
   );
 }
 
-// --- Re-using and Adjusting Styles from LoginScreen ---
-
+  // Styles matching LoginScreen design
 const styles = StyleSheet.create({
+  // --- General Layout and Background ---
   container: {
     flex: 1,
     backgroundColor: "#1B1E27", 
@@ -176,36 +267,22 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: "center",
     paddingHorizontal: 25,
-    paddingBottom: 40,
-  },
-  
-  // Header and Back Button
-  header: {
-    width: '100%',
-    alignItems: 'flex-start',
-    marginTop: 50,
-    marginBottom: 40,
-  },
-  backText: {
-    color: "#b8b9c8",
-    fontSize: 16,
-    marginLeft: 28, // Offset the text next to the icon
-    position: 'absolute',
-    top: 0,
+    paddingTop: 140, // Space from the top
+    paddingBottom: 30,
   },
 
-  // Icon Container (Reused)
+  // --- Icon Container ---
   iconContainer: {
     width: 68,
     height: 68,
-    backgroundColor: "#4d3cff",
+    backgroundColor: "#4d3cff", 
     borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 30,
   },
 
-  // Headings (Reused)
+  // --- Headings ---
   title: {
     fontSize: 28,
     color: "white",
@@ -213,16 +290,50 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subtitle: {
-    color: "#b8b9c8",
+    color: "#b8b9c8", 
     fontSize: 15,
-    marginBottom: 4,
+    marginBottom: 8,
     textAlign: 'center',
   },
-  phoneNumberText: {
-    color: "white",
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 40,
+  phoneNumber: {
+    fontSize: 18,
+    color: "#6d4cff",
+    fontWeight: "600",
+    marginBottom: 20,
+  },
+
+  // --- Demo OTP Box ---
+  demoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    backgroundColor: "#1f2843ff", 
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#3a7afe', 
+    marginBottom: 20,
+  },
+  demoText: {
+    color: "#cdd0df",
+    fontSize: 13,
+    marginLeft: 10,
+    flex: 1,
+  },
+  demoOtp: {
+    color: "#6d4cff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+
+  // --- Input Section ---
+  label: {
+    width: "100%",
+    color: "#b8b9c8",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 10,
+    textAlign: "left",
   },
 
   // --- OTP Inputs ---
@@ -230,59 +341,60 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    maxWidth: 300, // Constraint max width for better centering on large screens
-    marginVertical: 10,
+    maxWidth: 280,
+    marginBottom: 20,
   },
   otpInput: {
-    width: 45, // Adjusted size for 6 boxes to fit
+    width: 60,
     height: 55,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#2B2F39', 
     color: 'white',
     fontSize: 24,
     fontWeight: '700',
     textAlign: 'center',
-    // Optional: Add a subtle border when focused
-    // borderWidth: 1,
-    // borderColor: 'transparent',
+    marginHorizontal: 5,
   },
 
-  // Resend Text
+  // --- Resend Button ---
+  resendButtonContainer: {
+    marginBottom: 20,
+  },
   resendText: {
     color: "#6d4cff",
     fontSize: 15,
     fontWeight: '600',
+    textAlign: 'center',
   },
   disabledText: {
-    color: "#80828c", // Muted color when disabled (timer is running)
+    color: "#80828c",
   },
 
-  // --- Security Warning Box ---
-  warningBox: {
+  // --- Info Box ---
+  infoBox: {
     flexDirection: "row",
     alignItems: "flex-start",
     width: "100%",
-    backgroundColor: "#2B2F39", // Darker background for the warning
+    backgroundColor: "#1f2843ff", 
     padding: 15,
     borderRadius: 12,
     borderWidth: 1,
-    // Orange/Amber border color
-    borderColor: '#ff8b3d', 
+    borderColor: '#3a7afe', 
     marginBottom: 30,
-    marginTop: 10,
   },
-  warningText: {
+  infoText: {
     color: "#cdd0df",
-    fontSize: 13,
+    fontSize: 11,
     marginLeft: 10,
     flexShrink: 1,
   },
   
-  // Button (Reused)
+  // --- Button ---
   buttonWrapper: {
     width: "100%",
     borderRadius: 14,
     overflow: 'hidden',
+    marginBottom: 20,
   },
   button: {
     padding: 16,
@@ -291,20 +403,30 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   disabledButton: {
-    opacity: 0.6, // Mute the button when OTP is incomplete
+    opacity: 0.6,
   },
   buttonText: {
     color: "white",
     fontSize: 17,
     fontWeight: "600",
   },
+
+  // --- Back Button ---
+  backButton: {
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  backText: {
+    color: "#b8b9c8",
+    fontSize: 16,
+  },
   
-  // Footer (Reused)
+  // --- Footer ---
   footer: {
     textAlign: "center",
     color: "#80828c", 
     fontSize: 13,
-    marginTop: 25,
+    marginTop: 10,
   },
   linkText: {
     color: "#6d4cff", 

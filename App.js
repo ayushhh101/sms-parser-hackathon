@@ -9,9 +9,11 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import TestScreen from './src/screens/TestScreen';
 import Onboarding from './src/screens/Onboarding';
 import LoginScreen from './src/screens/LoginScreen';
+import OTPScreen from './src/screens/OTPScreen';
 import OTPVerificationScreen from './src/screens/OTPVerificationScreen';
 import ProfileSetupScreen from './src/screens/ProfileSetupScreen';
 import PermissionsScreen from './src/screens/PermissionsScreen';
+import SMSParserScreen from './src/screens/SMSParserScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -110,7 +112,9 @@ export default function App() {
         {/* Screens WITHOUT Tabs (The Authentication Flow) */}
         <Stack.Screen name="Onboarding" component={Onboarding} />
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="OTP" component={OTPVerificationScreen} />
+        <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
+        <Stack.Screen name="Dashboard" component={DashboardScreen} />
+        <Stack.Screen name="SMSParser" component={SMSParserScreen} />
 
         {/* The screen WITH Tabs (The Main App) */}
         {/* We call the Tab Navigator component here. When the user navigates here, 
