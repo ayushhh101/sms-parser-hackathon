@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, StatusBar, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, StatusBar, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { Audio } from 'expo-av';
 import { getApiUrl } from '../utils/apiConfig';
-
 
 const QUICK_AMOUNTS = [50, 100, 200, 500, 1000];
 const CATEGORIES = [
@@ -16,8 +16,6 @@ const CATEGORIES = [
   { id: 'repair', name: 'Repair', icon: 'tools', lib: 'FontAwesome5' },
   { id: 'family', name: 'Family', icon: 'people', lib: 'Ionicons' },
 ];
-
-
 
 const TabButton = ({ title, icon, isActive, onPress }) => (
   <TouchableOpacity 
@@ -74,11 +72,13 @@ const CaptureCard = ({ title, subtitle, amount, type, rawText, icon, color }) =>
 
 export default function CaptureScreen() {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('SMS'); // Default to SMS for the Demo
-  
+  const [activeTab, setActiveTab] = useState('SMS'); 
   const [loading, setLoading] = useState(false);
 
-
+  // audio recording statess
+  const [recording, setRecording] = useState(null);
+  const [permissionResponse, requestPermission] = Audio.usePermissions();
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
 
   // Manual Form State
   const [txType, setTxType] = useState('paid');
@@ -89,89 +89,180 @@ export default function CaptureScreen() {
   const [manualEntries, setManualEntries] = useState([]);
   const [filter, setFilter] = useState("all");
 
-  //save the logs to DB
-  const handleSave = async () => {
-  if (!amount || Number(amount) <= 0) {
-    Alert.alert("Error", "Enter a valid amount");
-    return;
+  // ===================================================
+  // AUDIO LOGIC
+  // ===================================================
+
+  async function startRecording() {
+    try {
+      if (permissionResponse.status !== 'granted') {
+        console.log('Requesting permission..');
+        await requestPermission();
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      console.log('Starting recording..');
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(recording);
+      console.log('Recording started');
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Alert.alert("Error", "Could not access microphone");
+    }
   }
 
-  setLoading(true);
+  async function stopRecording() {
+    console.log('Stopping recording..');
+    if (!recording) return;
 
-  const userId = "usr_rahul_001";  // replace with your real user id later
-  const clientLocalId = `cl_${Date.now()}`;
-  const txId = `tx_${Date.now()}`;
+    setRecording(undefined);
+    await recording.stopAndUnloadAsync();
+    
+    const uri = recording.getURI(); 
+    console.log('Recording stopped and stored at', uri);
 
-  // convert rupees → paise
-  const amountPaise = Math.round(Number(amount) * 100);
+    if (uri) {
+      uploadAudio(uri);
+    }
+  }
 
-  const payload = {
-    txId,
-    userId,
-    clientLocalId,
-    type: txType === "paid" ? "expense" : txType === "received" ? "income" : "transfer",
-    amountPaise,
-    category: selectedCategory,
-    merchant: note?.trim() ? note.trim() : null, // optional
-    method: paymentMode,  // cash | upi | card
-    source: "manual",
-    timestamp: new Date().toISOString(),
-    notes: note || "",
-    synced: false,
-    parserMeta: {}
-  };
+  const uploadAudio = async (uri) => {
+    setIsUploadingAudio(true);
+    
+    const formData = new FormData();
+    
+    // Extract file extension to be safe (usually .m4a)
+    const uriParts = uri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
 
-  console.log("FINAL PAYLOAD:", payload);
-
-  try {
-    const backendURL = getApiUrl("/transactions/manual");
-
-    const res = await fetch(backendURL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+    formData.append('file', {
+      uri: uri,
+      name: `voice_log_${Date.now()}.${fileType}`,
+      type: `audio/${fileType}`, 
     });
 
-    const data = await res.json();
+    // Add extra fields if your backend needs them
+    formData.append('userId', 'usr_rahul_001');
 
-    if (res.ok) {
-      Alert.alert("Saved!", "Entry added successfully");
-      setAmount("");
-      setNote("");
-    } else {
-      Alert.alert("Error", data.message || "Failed to save");
+    try {
+      const backendURL = getApiUrl("/transactions/voice-log"); 
+
+      const res = await fetch(backendURL, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'Accept': 'application/json',
+        },
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        Alert.alert("Success", "Voice log uploaded successfully!");
+        console.log("Server Response:", data);
+      } else {
+        Alert.alert("Upload Failed", data.message || "Something went wrong");
+      }
+
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Network Error", "Failed to upload audio");
+    } finally {
+      setIsUploadingAudio(false);
+    }
+  };
+
+
+  // ===================================================
+  // MANUAL LOGIC
+  // ===================================================
+  
+  const handleSave = async () => {
+    if (!amount || Number(amount) <= 0) {
+      Alert.alert("Error", "Enter a valid amount");
+      return;
     }
 
-  } catch (err) {
-    console.error(err);
-    Alert.alert("Network Error", "Cannot reach server");
-  }
+    setLoading(true);
 
-  await fetchManualEntries();
-  setLoading(false);
-};
+    const userId = "usr_rahul_001"; 
+    const clientLocalId = `cl_${Date.now()}`;
+    const txId = `tx_${Date.now()}`;
 
+    // convert rupees → paise
+    const amountPaise = Math.round(Number(amount) * 100);
 
-//retrive manual logs with filters
-const fetchManualEntries = async () => {
-  try {
-    const url = getApiUrl(`/transactions/manual-logs?userId=usr_rahul_001&filter=${filter}`);
+    const payload = {
+      txId,
+      userId,
+      clientLocalId,
+      type: txType === "paid" ? "expense" : txType === "received" ? "income" : "transfer",
+      amountPaise,
+      category: selectedCategory,
+      merchant: note?.trim() ? note.trim() : null, 
+      method: paymentMode, 
+      source: "manual",
+      timestamp: new Date().toISOString(),
+      notes: note || "",
+      synced: false,
+      parserMeta: {}
+    };
 
-    const res = await fetch(url);
-    console.log(res)
-    const data = await res.json();
+    console.log("FINAL PAYLOAD:", payload);
 
-    if (res.ok) {
-      setManualEntries(data.transactions || []);
+    try {
+      const backendURL = getApiUrl("/transactions/manual");
+
+      const res = await fetch(backendURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        Alert.alert("Saved!", "Entry added successfully");
+        setAmount("");
+        setNote("");
+        fetchManualEntries(); // Refresh list immediately
+      } else {
+        Alert.alert("Error", data.message || "Failed to save");
+      }
+
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Network Error", "Cannot reach server");
     }
-  } catch (err) {
-    console.log("Fetch error:", err);
-  }
-};
+    setLoading(false);
+  };
 
-React.useEffect(() => {
-  fetchManualEntries();
-}, [filter]);
+
+  // Retrieve manual logs with filters
+  const fetchManualEntries = async () => {
+    try {
+      const url = getApiUrl(`/transactions/manual-logs?userId=usr_rahul_001&filter=${filter}`);
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (res.ok) {
+        setManualEntries(data.transactions || []);
+      }
+    } catch (err) {
+      console.log("Fetch error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchManualEntries();
+  }, [filter]);
 
 
   return (
@@ -195,7 +286,7 @@ React.useEffect(() => {
           <TabButton title="Manual" icon="create" isActive={activeTab === 'Manual'} onPress={() => setActiveTab('Manual')} />
         </View>
 
-        {}
+        {/* SMS TAB CONTENT */}
         {activeTab === 'SMS' && (
           <View className="mb-10">
             {/* Main Status Card */}
@@ -223,7 +314,6 @@ React.useEffect(() => {
             {/* Recent Captures Header */}
             <Text className="text-white font-bold text-lg mb-4">Recent Captures</Text>
             
-            
             <CaptureCard 
               title="Swiggy Payout"
               subtitle="Detected from SMS"
@@ -234,7 +324,6 @@ React.useEffect(() => {
               rawText="Rs 847.00 credited to your account for Swiggy delivery via NEFT..."
             />
 
-            
             <CaptureCard 
               title="Petrol Pump"
               subtitle="Detected from SMS"
@@ -248,18 +337,49 @@ React.useEffect(() => {
         )}
 
         
+        {/* VOICE TAB CONTENT */}
         {activeTab === 'Voice' && (
            <View className="items-center justify-center py-20">
-              <TouchableOpacity className="w-28 h-28 bg-red-500 rounded-full items-center justify-center mb-6 shadow-lg shadow-red-500/50">
-                 <Ionicons name="mic" size={50} color="white" />
+              {/* RECORD BUTTON */}
+              <TouchableOpacity 
+                onPress={recording ? stopRecording : startRecording}
+                disabled={isUploadingAudio}
+                className={`w-32 h-32 rounded-full items-center justify-center mb-6 shadow-lg 
+                  ${recording 
+                    ? 'bg-red-600 shadow-red-500/50 border-4 border-red-400' 
+                    : 'bg-emerald-500 shadow-emerald-500/50'
+                  }`}
+              >
+                 {isUploadingAudio ? (
+                   <ActivityIndicator size="large" color="white" />
+                 ) : (
+                   <Ionicons 
+                     name={recording ? "stop" : "mic"} 
+                     size={50} 
+                     color="white" 
+                   />
+                 )}
               </TouchableOpacity>
-              <Text className="text-white text-xl font-bold">Tap to Speak</Text>
-              <Text className="text-slate-400 text-center px-10 mt-2 leading-6">
-                 Try saying: {"\n"}"I spent 50 rupees on tea"
+
+              {/* STATUS TEXT */}
+              <Text className="text-white text-xl font-bold">
+                {isUploadingAudio 
+                  ? "Uploading..." 
+                  : recording 
+                    ? "Recording... Tap to Stop" 
+                    : "Tap to Speak"}
               </Text>
+              
+              {/* INSTRUCTIONS */}
+              {!recording && !isUploadingAudio && (
+                <Text className="text-slate-400 text-center px-10 mt-2 leading-6">
+                   Try saying: {"\n"}"I spent 50 rupees on tea"
+                </Text>
+              )}
            </View>
         )}
 
+        {/* MANUAL TAB CONTENT */}
         {activeTab === 'Manual' && (
           <View className="mb-10">
             {/* TYPE SELECTOR */}
@@ -337,12 +457,11 @@ React.useEffect(() => {
 
             {/* SAVE BUTTON */}
             <TouchableOpacity onPress={handleSave} className="bg-[#10B981] py-4 rounded-xl mt-6 items-center shadow-lg shadow-emerald-900/50">
-              <Text className="text-white font-bold text-lg">Save Entry</Text>
+              {loading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">Save Entry</Text>}
             </TouchableOpacity>
 
             {/* RECENT MANUAL ENTRIES */}
             <View className="mt-8">
-
               {/* FILTER BUTTONS */}
               <View className="flex-row mb-4 bg-slate-800 p-1 rounded-xl">
                 {["all", "week", "month"].map((f) => (
@@ -375,35 +494,61 @@ React.useEffect(() => {
               )}
 
               {/* ENTRY LIST */}
-              {manualEntries.map((item) => (
-                <View
-                  key={item.txId}
-                  className="bg-[#1E293B] p-4 rounded-2xl mb-4 border-l-4 border-emerald-500"
-                >
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text className="text-white font-bold capitalize">
-                      {item.category}
+              {manualEntries.map((item) => {
+                const isExpense = item.type === 'expense';
+                const isTransfer = item.type === 'transfer';
+
+                let borderColor = 'border-emerald-500'; // Default: Income (Green)
+                let textColor = 'text-emerald-400';
+                let sign = '+';
+
+                if (isExpense) {
+                  borderColor = 'border-red-500';       // Expense (Red)
+                  textColor = 'text-red-400';
+                  sign = '-';
+                } else if (isTransfer) {
+                  borderColor = 'border-blue-500';      // Transfer (Blue)
+                  textColor = 'text-blue-400';
+                  sign = '';
+                }
+
+                return (
+                  <View
+                    key={item.txId}
+                    // 2. Use the dynamic border color
+                    className={`bg-[#1E293B] p-4 rounded-2xl mb-4 border-l-4 ${borderColor}`}
+                  >
+                    <View className="flex-row justify-between items-center mb-2">
+                      <View>
+                        <Text className="text-white font-bold capitalize text-base">
+                          {item.category}
+                        </Text>
+                        <Text className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                          {item.type} {/* Shows: INCOME / EXPENSE / TRANSFER */}
+                        </Text>
+                      </View>
+
+                      {/* 3. Use the dynamic text color and sign */}
+                      <Text className={`${textColor} font-bold text-lg`}>
+                        {sign}₹{(item.amountPaise / 100).toFixed(2)}
+                      </Text>
+                    </View>
+
+                    <Text className="text-slate-400 text-xs mt-1">
+                      {new Date(item.timestamp).toLocaleString()}
                     </Text>
 
-                    <Text className="text-emerald-400 font-bold">
-                      ₹{(item.amountPaise / 100).toFixed(2)}
-                    </Text>
+                    {item.notes ? (
+                      <View className="bg-slate-800/50 p-2 rounded-lg mt-2">
+                         <Text className="text-slate-400 text-xs italic">
+                           "{item.notes}"
+                         </Text>
+                      </View>
+                    ) : null}
                   </View>
-
-                  <Text className="text-slate-400 text-xs">
-                    {new Date(item.timestamp).toLocaleString()}
-                  </Text>
-
-                  {item.notes ? (
-                    <Text className="text-slate-500 text-xs italic mt-1">
-                      {item.notes}
-                    </Text>
-                  ) : null}
-                </View>
-              ))}
-
+                );
+              })}
             </View>
-
           </View>
         )}
 
