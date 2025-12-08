@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, Alert, RefreshControl, Image } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, Alert, RefreshControl, Image ,Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from '../utils/apiConfig';
@@ -169,8 +169,8 @@ const ChallengeCard = ({ item }) => {
   );
 }
 
-// --- UPDATED COMPONENT: Jar Item (With Specific Amount Button) ---
-const JarItem = ({ item }) => {
+// --- UPDATED JAR ITEM (Receives onAddPress) ---
+const JarItem = ({ item, onAddPress }) => {
   if (item.isAdd) {
     return (
       <TouchableOpacity className="w-[48%] bg-[#1E293B] aspect-[0.85] rounded-2xl border-2 border-dashed border-slate-700 items-center justify-center mb-4">
@@ -185,29 +185,27 @@ const JarItem = ({ item }) => {
   const progress = (item.saved / item.target) * 100;
 
   return (
-    <View className={`w-[48%] ${item.bg} p-4 rounded-2xl mb-4`}>
-      {/* Icon & Title */}
+    <View className={`w-[48%] ${item.bg || 'bg-slate-800'} p-4 rounded-2xl mb-4`}>
       <View className="items-center mb-2">
-        <MaterialCommunityIcons name={item.icon} size={32} color={item.color} style={{marginBottom: 8}} />
+        <MaterialCommunityIcons name={item.icon || 'piggy-bank'} size={32} color={item.color || '#fff'} style={{marginBottom: 8}} />
         <Text className="text-white font-bold text-base text-center" numberOfLines={1}>{item.title}</Text>
         <Text className="text-white font-bold text-xl my-1">₹{item.saved}</Text>
       </View>
 
-      {/* Progress Bar */}
       <View className="mb-3">
         <View className="h-2 bg-black/20 rounded-full overflow-hidden mb-1">
-          <View style={{ width: `${progress}%`, backgroundColor: item.color }} className="h-full rounded-full" />
+          <View style={{ width: `${progress}%`, backgroundColor: item.color || '#fff' }} className="h-full rounded-full" />
         </View>
         <Text className="text-slate-300 text-[10px] text-center">{Math.round(progress)}% of ₹{item.target}</Text>
       </View>
 
-      {/* UPDATED: Button shows the specific amount calculated from backend */}
+      {/* OPEN THE MODAL ON PRESS */}
       <TouchableOpacity 
         className="bg-black/20 py-2.5 rounded-xl flex-row items-center justify-center border border-white/10"
-        onPress={() => Alert.alert("Deposit", `Add ₹${item.suggested_amt} to ${item.title}`)}
+        onPress={() => onAddPress(item)} 
       >
         <Ionicons name="add" size={16} color="white" style={{marginRight: 2}} />
-        <Text className="text-white text-xs font-bold">Add ₹{item.suggested_amt}</Text>
+        <Text className="text-white text-xs font-bold">Add ₹{item.suggested_amt || 100}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -224,6 +222,63 @@ export default function GoalsScreen() {
   const [budgetData, setBudgetData] = useState([]);
   const [overallMetrics, setOverallMetrics] = useState(null);
   const [jarsData,setJarsData] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedJar, setSelectedJar] = useState(null);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [isDepositing, setIsDepositing] = useState(false);
+  const [monthlyStats, setMonthlyStats] = useState({ total: 0, count: 0 });
+  const [unallocatedCash, setUnallocatedCash] = useState(0);
+
+
+  const openDepositModal = (jar) => {
+    setSelectedJar(jar);
+    setDepositAmount(jar.suggested_amt ? jar.suggested_amt.toString() : '');
+    setModalVisible(true);
+  };
+
+  // 2. HANDLE DEPOSIT (API CALL)
+  const handleDeposit = async () => {
+    if (!depositAmount || isNaN(depositAmount) || Number(depositAmount) <= 0) {
+      Alert.alert("Error", "Please enter a valid amount");
+      return;
+    }
+
+    setIsDepositing(true);
+    try {
+      const response = await fetch(getApiUrl(`/jars/${selectedJar._id || selectedJar.id}/deposit`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          amount: Number(depositAmount)
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setModalVisible(false);
+        setDepositAmount('');
+        Alert.alert("Success", `₹${depositAmount} added to ${selectedJar.title}!`);
+        handleRefresh();
+        fetchJarsData(userId);
+        
+        if (data.newUnallocated !== undefined) {
+           setUnallocatedCash(data.newUnallocated);
+        } else {
+           fetchUserStats(userId);
+        }
+
+      } else {
+        Alert.alert("Failed", data.message || "Could not deposit money.");
+      }
+    } catch (error) {
+      console.error("Deposit error:", error);
+      Alert.alert("Error", "Network error. Please try again.");
+    } finally {
+      setIsDepositing(false);
+    }
+  };
 
   useEffect(() => {
     loadUserData();
@@ -238,10 +293,40 @@ export default function GoalsScreen() {
         setUserId(userIdValue);
         fetchBudgetData(userIdValue);
         fetchJarsData(userIdValue);
+        fetchMonthlyStats(userIdValue);
+        fetchUserStats(userIdValue);
       }
     } catch (error) {
       console.error("Error loading user data:", error);
       setLoading(false);
+    }
+  };
+
+  const fetchUserStats = async (userIdValue) => {
+  try {
+    const response = await fetch(getApiUrl(`/users/${userIdValue}`));
+    const data = await response.json();
+    if (data.success && data.user.stats) {
+      setUnallocatedCash(data.user.stats.unallocatedCash || 0);
+    }
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+  }
+};
+
+  const fetchMonthlyStats = async (userIdValue) => {
+    try {
+      const response = await fetch(getApiUrl(`/jars/${userIdValue}/stats`));
+      const data = await response.json();
+      
+      if (data.success) {
+        setMonthlyStats({
+          total: data.data.totalSavedThisMonth,
+          count: data.data.challengesCompleted
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching monthly stats:", error);
     }
   };
 
@@ -300,7 +385,6 @@ export default function GoalsScreen() {
 
   const fetchJarsData = async (userIdValue) => {
     try {
-      // Assuming your route is /api/jars/:userId
       const response = await fetch(getApiUrl(`/jars/${userIdValue}`));
       const data = await response.json();
 
@@ -308,7 +392,7 @@ export default function GoalsScreen() {
         // We append the "New Jar" button logic here locally so the UI renders it last
         const jarsWithAddButton = [
           ...data.data, 
-          { id: 'add-new', isAdd: true } // Dummy item for the "+" button
+          { id: 'add-new', isAdd: true }
         ];
         setJarsData(jarsWithAddButton);
       }
@@ -323,7 +407,8 @@ export default function GoalsScreen() {
     setRefreshing(true);
     await Promise.all([
       fetchBudgetData(userId),
-      fetchJarsData(userId) // <--- ADD THIS
+      fetchJarsData(userId),
+      fetchMonthlyStats(userId),
     ]);
     setRefreshing(false);
   };
@@ -396,11 +481,27 @@ export default function GoalsScreen() {
               )}
             </View>
 
-            {/* Savings Goals - Mock Data */}
-            <Text className="text-white font-bold text-xl mb-4">Savings Goals</Text>
-            {MOCK_GOALS.map((item) => (
-              <GoalCard key={item.id} item={item} />
-            ))}
+            {/* Savings Goals - Real Data */}
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-white font-bold text-xl">Savings Goals</Text>
+              {/* Optional: Add a small 'See All' or 'Add' button if list is empty */}
+            </View>
+
+            {/* Filter out the 'add-new' button we added for the other screen */}
+            {jarsData.filter(jar => !jar.isAdd).length > 0 ? (
+              jarsData
+                .filter(jar => !jar.isAdd) // Remove the "+" button dummy item
+                .map((jar) => (
+                  <GoalCard key={jar._id || jar.id} item={jar} />
+                ))
+            ) : (
+              <View className="bg-[#1E293B] p-6 rounded-2xl items-center mb-4 border border-dashed border-slate-700">
+                <Text className="text-slate-400 mb-2">No active savings goals</Text>
+                <TouchableOpacity onPress={() => setViewMode('Challenges')}>
+                   <Text className="text-emerald-500 font-bold">Create your first Jar →</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </>
         )}
 
@@ -421,7 +522,7 @@ export default function GoalsScreen() {
              {/* Green Stats Card */}
              <View className="bg-[#10B981] rounded-3xl p-6 mb-6">
                 <Text className="text-emerald-900 font-medium mb-1">Total Saved This Month</Text>
-                <Text className="text-white font-bold text-4xl mb-4">₹1,450</Text>
+                <Text className="text-white font-bold text-4xl mb-4">₹{monthlyStats.total.toLocaleString('en-IN')}</Text>
                 <View className="flex-row gap-3">
                    <View className="bg-emerald-800/20 px-3 py-1.5 rounded-lg flex-row items-center border border-emerald-400/30">
                       <Ionicons name="trophy" size={14} color="#FFD700" style={{marginRight: 6}} />
@@ -456,7 +557,7 @@ export default function GoalsScreen() {
              </View>
 
              <View className="flex-row flex-wrap justify-between mb-6">
-                {jarsData.map(jar => <JarItem key={jar.id} item={jar} />)}
+                {jarsData.map(jar => <JarItem key={jar.id} item={jar} onAddPress={openDepositModal}/>)}
              </View>
 
              {/* Weekly Progress */}
@@ -507,6 +608,78 @@ export default function GoalsScreen() {
 
         <View className="h-20" />
       </ScrollView>
+
+      {/* --- DEPOSIT MODAL --- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1 justify-end"
+        >
+          {/* DIMMED BACKGROUND */}
+          <TouchableOpacity 
+            className="absolute top-0 bottom-0 left-0 right-0 bg-black/70" 
+            activeOpacity={1} 
+            onPress={() => setModalVisible(false)}
+          />
+
+          {/* MODAL CONTENT */}
+          <View className="bg-[#1E293B] rounded-t-3xl p-6 border-t border-slate-700">
+            <View className="items-center mb-6">
+              <View className="w-12 h-1 bg-slate-600 rounded-full mb-4" />
+              <Text className="text-white text-xl font-bold">Add to {selectedJar?.title}</Text>
+              <Text className="text-slate-400 text-sm">Safe to spend check will apply</Text>
+            </View>
+
+            {/* AMOUNT INPUT */}
+            <View className="bg-slate-900 rounded-2xl p-4 mb-6 border border-slate-700 flex-row items-center">
+              <Text className="text-emerald-500 text-2xl font-bold mr-2">₹</Text>
+              <TextInput 
+                className="flex-1 text-white text-3xl font-bold"
+                placeholder="0"
+                placeholderTextColor="#475569"
+                keyboardType="numeric"
+                value={depositAmount}
+                onChangeText={setDepositAmount}
+                autoFocus={true}
+              />
+            </View>
+
+            <View className="flex-row justify-between items-center mb-6 px-1">
+              <Text className="text-slate-400 text-xs">Available to save:</Text>
+              <Text className={`font-bold text-xs ${Number(depositAmount) > unallocatedCash ? 'text-red-400' : 'text-emerald-400'}`}>
+                ₹{unallocatedCash.toLocaleString('en-IN')}
+              </Text>
+            </View>
+
+            {/* ACTION BUTTONS */}
+            <View className="flex-row gap-4 mb-4">
+              <TouchableOpacity 
+                className="flex-1 bg-slate-700 py-4 rounded-xl items-center"
+                onPress={() => setModalVisible(false)}
+              >
+                <Text className="text-white font-bold">Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                className="flex-1 bg-emerald-500 py-4 rounded-xl items-center"
+                onPress={handleDeposit}
+                disabled={isDepositing}
+              >
+                {isDepositing ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-white font-bold text-lg">Confirm Add</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }

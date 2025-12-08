@@ -136,6 +136,29 @@ export default function DashboardScreen() {
     );
   } 
 
+
+  // ---------------------------------------------------------
+  // 1. EXTRACT DATA & CALCULATE UNALLOCATED CASH
+  // ---------------------------------------------------------
+  const stats = userData?.stats || {};
+  
+
+  const todayEarned = stats.todayEarned || 0;
+  const todaySpent = stats.todaySpent || 0;
+  const todayBalance = todayEarned - todaySpent;
+
+  const totalIncome = stats.totalEarnings || 0;
+  const totalExpenses = stats.totalSpent || 0;
+  const totalSaved = stats.totalSaved || 0; 
+
+  const unallocatedCash = stats.unallocatedCash !== undefined 
+    ? stats.unallocatedCash 
+    : (totalIncome - totalExpenses - totalSaved);
+  // ---------------------------------------------------------
+
+
+
+
   return (
     <SafeAreaView className="flex-1 bg-[#0F172A]">
       <StatusBar barStyle="light-content" />
@@ -169,44 +192,74 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/*  BALANCE CARD */}
+        {/* BALANCE & UNALLOCATED CARD */}
         <View className="bg-[#10B981] rounded-3xl p-6 mb-6 shadow-lg">
-          <Text className="text-emerald-100 text-base font-medium">Today's Balance</Text>
-          <Text className="text-white text-4xl font-bold mt-2">
-            ₹{userData?.stats?.totalEarnings || '4,850'}
-          </Text>
           
-          <View className="flex-row justify-between mt-6">
+          {/* TOP ROW: Split View */}
+          <View className="flex-row justify-between items-start mb-6">
+            
+            {/* LEFT: Today's Balance */}
+            <View>
+              <Text className="text-emerald-100 text-xs font-medium uppercase tracking-wider">
+                Today's Balance
+              </Text>
+              <Text className="text-white text-3xl font-bold mt-1">
+                ₹{todayBalance.toLocaleString('en-IN')}
+              </Text>
+              <Text className="text-emerald-200 text-[10px]">
+                {todayBalance >= 0 ? 'Profit today' : 'Overspent today'}
+              </Text>
+            </View>
+
+            {/* RIGHT: Unallocated Cash (Aligned Right) */}
+            <View className="items-end"> 
+               <Text className="text-emerald-100 text-xs font-medium uppercase tracking-wider">
+                 Safe to Save
+               </Text>
+               <Text className="text-white text-3xl font-bold mt-1">
+                 ₹{unallocatedCash.toLocaleString('en-IN')}
+               </Text>
+               
+               {/* Subtext with Icon to match the height of the left side */}
+               <View className="flex-row items-center mt-0.5">
+                 <FontAwesome5 name="wallet" size={10} color="#a7f3d0" style={{marginRight: 4}}/>
+                 <Text className="text-emerald-200 text-[10px]">Available</Text>
+               </View>
+            </View>
+          </View>
+          
+          {/* BOTTOM ROW: Today's Breakdown */}
+          <View className="flex-row justify-between pt-4 border-t border-emerald-500/30">
             {/* Earned */}
-            <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-xl">
-              <View className="bg-emerald-100 rounded-full p-1 mr-2">
-                <Ionicons name="arrow-down" size={12} color="#059669" />
+            <View className="flex-row items-center">
+              <View className="bg-emerald-100/20 p-1.5 rounded-full mr-2">
+                <Ionicons name="arrow-down" size={12} color="#fff" />
               </View>
               <View>
-                <Text className="text-emerald-50 text-[10px]">Earned</Text>
-                <Text className="text-white font-bold">₹{userData?.stats?.todayEarned || '2,340'}</Text>
+                <Text className="text-emerald-100 text-[14px]">Earned</Text>
+                <Text className="text-white font-bold">₹{todayEarned.toLocaleString('en-IN')}</Text>
               </View>
             </View>
 
             {/* Spent */}
-            <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-xl">
-              <View className="bg-red-100 rounded-full p-1 mr-2">
-                <Ionicons name="arrow-up" size={12} color="#DC2626" />
+            <View className="flex-row items-center">
+              <View className="bg-red-500/20 p-1.5 rounded-full mr-2">
+                <Ionicons name="arrow-up" size={12} color="#fff" />
               </View>
               <View>
-                <Text className="text-emerald-50 text-[10px]">Spent</Text>
-                <Text className="text-white font-bold">₹{userData?.stats?.todaySpent || '890'}</Text>
+                <Text className="text-emerald-100 text-[14px]">Spent</Text>
+                <Text className="text-white font-bold">₹{todaySpent.toLocaleString('en-IN')}</Text>
               </View>
             </View>
 
-            {/* Saved */}
-            <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-xl">
-               <View className="bg-yellow-100 rounded-full p-1 mr-2">
-                <FontAwesome5 name="piggy-bank" size={10} color="#D97706" />
+            {/* Saved (Today's specific savings) */}
+            <View className="flex-row items-center">
+               <View className="bg-yellow-500/20 p-1.5 rounded-full mr-2">
+                <FontAwesome5 name="piggy-bank" size={10} color="#fff" />
               </View>
               <View>
-                <Text className="text-emerald-50 text-[10px]">Saved</Text>
-                <Text className="text-white font-bold">₹{userData?.stats?.todaySaved || '150'}</Text>
+                <Text className="text-emerald-100 text-[14px]">Saved</Text>
+                <Text className="text-white font-bold">₹{stats.todaySaved || 0}</Text>
               </View>
             </View>
           </View>
