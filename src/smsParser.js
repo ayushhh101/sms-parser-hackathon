@@ -21,21 +21,41 @@ const DEBIT_WORDS = ['debited', 'debit', 'spent', 'paid', 'payment', 'purchase',
 const CREDIT_WORDS = ['credited', 'credit', 'received', 'refund', 'deposited', 'added'];
 const CASHBACK_WORDS = ['cashback', 'cash back', 'reward', 'bonus'];
 
-// Known senders/merchants
+// Category keywords mapping (MongoDB categories: food, transport, recharge, entertainment, medical, send_home, miscellaneous)
+const CATEGORY_KEYWORDS = {
+  food: ['zomato', 'swiggy', 'dunzo', 'restaurant', 'cafe', 'food', 'eatery', 'dining', 'meal', 'lunch', 'dinner', 'breakfast', 'snack', 'pizza', 'burger', 'dominos', 'mcdonalds', 'kfc', 'subway'],
+  transport: ['uber', 'ola', 'rapido', 'auto', 'taxi', 'cab', 'metro', 'bus', 'train', 'irctc', 'railway', 'flight', 'petrol', 'diesel', 'fuel', 'gas', 'parking'],
+  recharge: ['recharge', 'prepaid', 'postpaid', 'mobile', 'airtel', 'jio', 'vi', 'vodafone', 'idea', 'bsnl', 'dth', 'broadband', 'internet', 'data'],
+  entertainment: ['netflix', 'amazon prime', 'hotstar', 'spotify', 'youtube', 'movie', 'cinema', 'pvr', 'inox', 'game', 'gaming', 'entertainment', 'subscription', 'ott'],
+  medical: ['hospital', 'clinic', 'doctor', 'pharmacy', 'medicine', 'medical', 'health', 'apollo', 'fortis', 'max', 'medlife', 'pharmeasy', '1mg', 'netmeds'],
+  send_home: ['transfer', 'sent to', 'family', 'home', 'mother', 'father', 'parent', 'brother', 'sister', 'upi transfer'],
+};
+
+// Known senders/merchants with categories
 const KNOWN_SENDERS = {
-  'HDFCBK': { name: 'HDFC Bank', category: 'Banking' },
-  'SBIBNK': { name: 'SBI', category: 'Banking' },
-  'ICICIB': { name: 'ICICI Bank', category: 'Banking' },
-  'AXISBK': { name: 'Axis Bank', category: 'Banking' },
-  'PAYTM': { name: 'Paytm', category: 'UPI' },
-  'PHONEPE': { name: 'PhonePe', category: 'UPI' },
-  'GPAY': { name: 'Google Pay', category: 'UPI' },
-  'AMAZON': { name: 'Amazon', category: 'Shopping' },
-  'FLIPKR': { name: 'Flipkart', category: 'Shopping' },
-  'ZOMATO': { name: 'Zomato', category: 'Food' },
-  'SWIGGY': { name: 'Swiggy', category: 'Food' },
-  'UBER': { name: 'Uber', category: 'Transport' },
-  'OLA': { name: 'Ola', category: 'Transport' },
+  'HDFCBK': { name: 'HDFC Bank', category: 'miscellaneous' },
+  'SBIBNK': { name: 'SBI', category: 'miscellaneous' },
+  'ICICIB': { name: 'ICICI Bank', category: 'miscellaneous' },
+  'AXISBK': { name: 'Axis Bank', category: 'miscellaneous' },
+  'PAYTM': { name: 'Paytm', category: 'miscellaneous' },
+  'PHONEPE': { name: 'PhonePe', category: 'miscellaneous' },
+  'GPAY': { name: 'Google Pay', category: 'miscellaneous' },
+  'AMAZON': { name: 'Amazon', category: 'miscellaneous' },
+  'FLIPKR': { name: 'Flipkart', category: 'miscellaneous' },
+  'ZOMATO': { name: 'Zomato', category: 'food' },
+  'SWIGGY': { name: 'Swiggy', category: 'food' },
+  'UBER': { name: 'Uber', category: 'transport' },
+  'OLA': { name: 'Ola', category: 'transport' },
+  'RAPIDO': { name: 'Rapido', category: 'transport' },
+  'IRCTC': { name: 'IRCTC', category: 'transport' },
+  'AIRTEL': { name: 'Airtel', category: 'recharge' },
+  'JIO': { name: 'Jio', category: 'recharge' },
+  'VI': { name: 'Vi', category: 'recharge' },
+  'APOLLO': { name: 'Apollo', category: 'medical' },
+  'PHARMEASY': { name: 'PharmEasy', category: 'medical' },
+  'NETFLIX': { name: 'Netflix', category: 'entertainment' },
+  'PRIME': { name: 'Amazon Prime', category: 'entertainment' },
+  'HOTSTAR': { name: 'Hotstar', category: 'entertainment' },
 };
 
 // Extract OTP from message
@@ -92,6 +112,31 @@ export const extractDiscount = (message) => {
   return match ? parseInt(match[1]) : null;
 };
 
+// Categorize transaction based on message content and sender
+export const categorizeTransaction = (message, sender) => {
+  const lowerMessage = message.toLowerCase();
+  const upperSender = sender.toUpperCase().replace(/[^A-Z]/g, '');
+  
+  // Check sender first
+  for (const [key, info] of Object.entries(KNOWN_SENDERS)) {
+    if (upperSender.includes(key)) {
+      return info.category;
+    }
+  }
+  
+  // Check message content for category keywords
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (lowerMessage.includes(keyword)) {
+        return category;
+      }
+    }
+  }
+  
+  // Default to miscellaneous
+  return 'miscellaneous';
+};
+
 // Get merchant/sender info
 export const getMerchant = (sender, message) => {
   const upper = sender.toUpperCase().replace(/[^A-Z]/g, '');
@@ -101,9 +146,11 @@ export const getMerchant = (sender, message) => {
   // Try to extract from message
   const merchantMatch = message.match(/(?:at|to|from|via)\s+([A-Za-z0-9\s]+?)(?:\s+on|\.|$)/i);
   if (merchantMatch?.[1]) {
-    return { name: merchantMatch[1].trim(), category: 'Other' };
+    const merchantName = merchantMatch[1].trim();
+    const category = categorizeTransaction(message, sender);
+    return { name: merchantName, category };
   }
-  return { name: sender, category: 'Other' };
+  return { name: sender, category: categorizeTransaction(message, sender) };
 };
 
 // Check if SMS is transactional
