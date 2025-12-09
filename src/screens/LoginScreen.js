@@ -6,18 +6,62 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { getApiUrl } from '../utils/apiConfig';
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
-  const handleSendOTP = () => {
-    // Logic to send OTP
-    navigation.navigate('OTP');
-    console.log("Sending OTP to:", phoneNumber);
+  
+  const handleSendOTP = async () => {
+    if (phoneNumber.length !== 10) {
+      Alert.alert("Error", "Please enter a valid 10-digit phone number");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(getApiUrl('/auth/send-otp'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: `+91${phoneNumber}`
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log("OTP sent:", data.otp); // Demo - OTP will be 1234
+        Alert.alert(
+          "OTP Sent!", 
+          `OTP sent to +91${phoneNumber}\n\nDemo OTP: ${data.otp}`,
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.navigate('OTPVerification', { 
+                phoneNumber: phoneNumber,
+                demoOtp: data.otp 
+              })
+            }
+          ]
+        );
+      } else {
+        Alert.alert("Error", data.error || "Failed to send OTP");
+      }
+    } catch (error) {
+      console.error("Send OTP error:", error);
+      Alert.alert("Error", "Network error. Please check if backend is running on port 3000");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -64,9 +108,9 @@ export default function LoginScreen() {
 
       {/* Send OTP Button */}
       <TouchableOpacity 
-        style={styles.buttonWrapper} 
+        style={[styles.buttonWrapper, loading && styles.disabledButton]} 
         onPress={handleSendOTP}
-        disabled={phoneNumber.length !== 10}
+        disabled={phoneNumber.length !== 10 || loading}
       >
         <LinearGradient
           colors={["#6d4cff", "#9b4dff"]}
@@ -74,7 +118,9 @@ export default function LoginScreen() {
           end={{ x: 1, y: 0 }}
           style={styles.button}
         >
-          <Text style={styles.buttonText}>Send OTP</Text>
+          <Text style={styles.buttonText}>
+            {loading ? "Sending..." : "Send OTP"}
+          </Text>
         </LinearGradient>
       </TouchableOpacity>
 

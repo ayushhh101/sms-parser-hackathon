@@ -1,7 +1,9 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, StatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Alert, RefreshControl } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native'; 
+import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApiUrl } from '../utils/apiConfig'; 
 
 
 const ActionButton = ({ icon, color, label, onPress }) => (
@@ -18,61 +20,246 @@ const ActionButton = ({ icon, color, label, onPress }) => (
 
 export default function DashboardScreen() {
   const navigation = useNavigation(); 
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (storedUserData) {
+        setUserData(JSON.parse(storedUserData));
+      } else {
+        // If no user data, redirect to login
+        console.log('No user data found, redirecting to login');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Onboarding' }],
+        });
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Onboarding' }],
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const storedUserData = await AsyncStorage.getItem("userData");
+      
+      if (!token || !storedUserData) {
+        throw new Error("No token or user data found");
+      }
+
+      const userData = JSON.parse(storedUserData);
+      const userId = userData.userId || userData._id;
+      
+      if (!userId) {
+        throw new Error("No user ID found");
+      }
+
+      const response = await fetch(getApiUrl(`/users/${userId}`), {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const responseText = await response.text();
+      
+      // Check if response is HTML (error page)
+      if (responseText.startsWith('<')) {
+        throw new Error('Server returned HTML instead of JSON. Check if backend is running.');
+      }
+      
+      const data = JSON.parse(responseText);
+
+      if (response.ok && data.success) {
+        setUserData(data.user);
+        await AsyncStorage.setItem("userData", JSON.stringify(data.user));
+      } else {
+        throw new Error(data.error || "Failed to fetch user data");
+      }
+    } catch (error) {
+      console.error("Refresh error:", error);
+      Alert.alert("Error", `Failed to refresh user data: ${error.message}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await AsyncStorage.multiRemove(["userToken", "userData"]);
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Onboarding' }],
+              });
+            } catch (error) {
+              console.error("Logout error:", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#0F172A] justify-center items-center">
+        <Text className="text-white text-lg">Loading...</Text>
+      </SafeAreaView>
+    );
+  } 
+
+
+  // ---------------------------------------------------------
+  // 1. EXTRACT DATA & CALCULATE UNALLOCATED CASH
+  // ---------------------------------------------------------
+  const stats = userData?.stats || {};
+  
+
+  const todayEarned = stats.todayEarned || 0;
+  const todaySpent = stats.todaySpent || 0;
+  const todayBalance = todayEarned - todaySpent;
+
+  const totalIncome = stats.totalEarnings || 0;
+  const totalExpenses = stats.totalSpent || 0;
+  const totalSaved = stats.totalSaved || 0; 
+
+  const unallocatedCash = stats.unallocatedCash !== undefined 
+    ? stats.unallocatedCash 
+    : (totalIncome - totalExpenses - totalSaved);
+  // ---------------------------------------------------------
+
+
+
 
   return (
     <SafeAreaView className="flex-1 bg-[#0F172A]">
       <StatusBar barStyle="light-content" />
       
-      <ScrollView className="flex-1 px-5 pt-4">
+      <ScrollView 
+        className="flex-1 px-5 pt-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         
          {/* HEADER SECTION  */}
         <View className="flex-row justify-between items-center mb-6">
           <View>
-            <Text className="text-gray-400 text-sm font-medium">Good Evening, Raju 👋</Text>
+            <Text className="text-gray-400 text-sm font-medium">
+              Good Evening, {userData?.name || 'User'} 👋
+            </Text>
             <Text className="text-white text-2xl font-bold mt-1">Your Money Dashboard</Text>
           </View>
-          <TouchableOpacity className="relative bg-slate-800 p-2 rounded-full">
-            <Ionicons name="notifications-outline" size={24} color="white" />
-            <View className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border border-slate-900" />
-          </TouchableOpacity>
+          <View className="flex-row items-center">
+            <TouchableOpacity className="relative bg-slate-800 p-2 rounded-full mr-2">
+              <Ionicons name="notifications-outline" size={24} color="white" />
+              <View className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border border-slate-900" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className="bg-red-600 px-3 py-2 rounded-full" 
+              onPress={handleLogout}
+            >
+              <Text className="text-white text-xs font-bold">Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/*  BALANCE CARD */}
+        {/* BALANCE & UNALLOCATED CARD */}
         <View className="bg-[#10B981] rounded-3xl p-6 mb-6 shadow-lg">
-          <Text className="text-emerald-100 text-base font-medium">Today's Balance</Text>
-          <Text className="text-white text-4xl font-bold mt-2">₹4,850</Text>
           
-          <View className="flex-row justify-between mt-6">
+          {/* TOP ROW: Split View */}
+          <View className="flex-row justify-between items-start mb-6">
+            
+            {/* LEFT: Today's Balance */}
+            <View>
+              <Text className="text-emerald-100 text-xs font-medium uppercase tracking-wider">
+                Today's Balance
+              </Text>
+              <Text className="text-white text-3xl font-bold mt-1">
+                ₹{todayBalance.toLocaleString('en-IN')}
+              </Text>
+              <Text className="text-emerald-200 text-[10px]">
+                {todayBalance >= 0 ? 'Profit today' : 'Overspent today'}
+              </Text>
+            </View>
+
+            {/* RIGHT: Unallocated Cash (Aligned Right) */}
+            <View className="items-end"> 
+               <Text className="text-emerald-100 text-xs font-medium uppercase tracking-wider">
+                 Safe to Save
+               </Text>
+               <Text className="text-white text-3xl font-bold mt-1">
+                 ₹{unallocatedCash.toLocaleString('en-IN')}
+               </Text>
+               
+               {/* Subtext with Icon to match the height of the left side */}
+               <View className="flex-row items-center mt-0.5">
+                 <FontAwesome5 name="wallet" size={10} color="#a7f3d0" style={{marginRight: 4}}/>
+                 <Text className="text-emerald-200 text-[10px]">Available</Text>
+               </View>
+            </View>
+          </View>
+          
+          {/* BOTTOM ROW: Today's Breakdown */}
+          <View className="flex-row justify-between pt-4 border-t border-emerald-500/30">
             {/* Earned */}
-            <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-xl">
-              <View className="bg-emerald-100 rounded-full p-1 mr-2">
-                <Ionicons name="arrow-down" size={12} color="#059669" />
+            <View className="flex-row items-center">
+              <View className="bg-emerald-100/20 p-1.5 rounded-full mr-2">
+                <Ionicons name="arrow-down" size={12} color="#fff" />
               </View>
               <View>
-                <Text className="text-emerald-50 text-[10px]">Earned</Text>
-                <Text className="text-white font-bold">₹2,340</Text>
+                <Text className="text-emerald-100 text-[14px]">Earned</Text>
+                <Text className="text-white font-bold">₹{todayEarned.toLocaleString('en-IN')}</Text>
               </View>
             </View>
 
             {/* Spent */}
-            <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-xl">
-              <View className="bg-red-100 rounded-full p-1 mr-2">
-                <Ionicons name="arrow-up" size={12} color="#DC2626" />
+            <View className="flex-row items-center">
+              <View className="bg-red-500/20 p-1.5 rounded-full mr-2">
+                <Ionicons name="arrow-up" size={12} color="#fff" />
               </View>
               <View>
-                <Text className="text-emerald-50 text-[10px]">Spent</Text>
-                <Text className="text-white font-bold">₹890</Text>
+                <Text className="text-emerald-100 text-[14px]">Spent</Text>
+                <Text className="text-white font-bold">₹{todaySpent.toLocaleString('en-IN')}</Text>
               </View>
             </View>
 
-            {/* Saved */}
-            <View className="flex-row items-center bg-white/20 px-3 py-2 rounded-xl">
-               <View className="bg-yellow-100 rounded-full p-1 mr-2">
-                <FontAwesome5 name="piggy-bank" size={10} color="#D97706" />
+            {/* Saved (Today's specific savings) */}
+            <View className="flex-row items-center">
+               <View className="bg-yellow-500/20 p-1.5 rounded-full mr-2">
+                <FontAwesome5 name="piggy-bank" size={10} color="#fff" />
               </View>
               <View>
-                <Text className="text-emerald-50 text-[10px]">Saved</Text>
-                <Text className="text-white font-bold">₹150</Text>
+                <Text className="text-emerald-100 text-[14px]">Saved</Text>
+                <Text className="text-white font-bold">₹{stats.todaySaved || 0}</Text>
               </View>
             </View>
           </View>
@@ -84,19 +271,19 @@ export default function DashboardScreen() {
             icon="arrow-down-outline" 
             color="#10B981" 
             label="Received" 
-            onPress={() => navigation.navigate('Capture')} 
+            onPress={() => navigation.navigate('SMSParser')} 
           />
           <ActionButton 
             icon="arrow-up-outline" 
             color="#F43F5E" 
             label="Paid" 
-            onPress={() => navigation.navigate('Capture')} 
+            onPress={() => navigation.navigate('SMSParser')} 
           />
           <ActionButton 
             icon="swap-horizontal" 
             color="#3B82F6" 
             label="Transfer" 
-            onPress={() => navigation.navigate('Capture')} 
+            onPress={() => navigation.navigate('SMSParser')} 
           />
         </View>
 
@@ -142,7 +329,7 @@ export default function DashboardScreen() {
         {/* LIST SECTION */}
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-white font-bold text-lg">Auto-Captured (SMS)</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Capture')}>
+          <TouchableOpacity onPress={() => navigation.navigate('SMSParser')}>
              <Text className="text-emerald-500 text-sm">View All</Text>
           </TouchableOpacity>
         </View>
