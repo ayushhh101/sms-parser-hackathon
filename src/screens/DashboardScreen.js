@@ -34,7 +34,6 @@ export default function DashboardScreen() {
       if (storedUserData) {
         setUserData(JSON.parse(storedUserData));
       } else {
-        // If no user data, redirect to login
         console.log('No user data found, redirecting to login');
         navigation.reset({
           index: 0,
@@ -179,9 +178,12 @@ export default function DashboardScreen() {
             <Text className="text-white text-2xl font-bold mt-1">Your Money Dashboard</Text>
           </View>
           <View className="flex-row items-center">
-            <TouchableOpacity className="relative bg-slate-800 p-2 rounded-full mr-2">
+            <TouchableOpacity 
+              className="relative bg-slate-800 p-2 rounded-full mr-2"
+              onPress={() => navigation.navigate('Notifications')}
+            >
               <Ionicons name="notifications-outline" size={24} color="white" />
-              <View className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border border-slate-900" />
+              {/* <View className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border border-slate-900" /> */}
             </TouchableOpacity>
             {/* <TouchableOpacity 
               className="bg-red-600 px-3 py-2 rounded-full" 
