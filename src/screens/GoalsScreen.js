@@ -161,7 +161,11 @@ const ChallengeCard = ({ item }) => {
             <View className="h-full bg-emerald-400 w-1/3 rounded-full" />
          </View>
       ) : (
-        <TouchableOpacity className="mt-2 bg-slate-700/50 py-2 rounded-lg items-center border border-slate-600">
+        <TouchableOpacity
+          className="mt-2 bg-slate-700/50 py-2 rounded-lg items-center border border-slate-600"
+          onPress={() => completeChallenge(item.id)}
+          disabled={item.type === 'completed'}
+        >
           <Text className="text-amber-500 font-bold text-xs">{item.btnText}</Text>
         </TouchableOpacity>
       )}
@@ -228,6 +232,8 @@ export default function GoalsScreen() {
   const [isDepositing, setIsDepositing] = useState(false);
   const [monthlyStats, setMonthlyStats] = useState({ total: 0, count: 0 });
   const [unallocatedCash, setUnallocatedCash] = useState(0);
+  const [dailyChallenges, setDailyChallenges] = useState([]);
+  const [loadingChallenges, setLoadingChallenges] = useState(true);
 
 
   const openDepositModal = (jar) => {
@@ -295,6 +301,7 @@ export default function GoalsScreen() {
         fetchJarsData(userIdValue);
         fetchMonthlyStats(userIdValue);
         fetchUserStats(userIdValue);
+        fetchDailyChallenges(userIdValue);
       }
     } catch (error) {
       console.error("Error loading user data:", error);
@@ -401,6 +408,60 @@ export default function GoalsScreen() {
     }
   };
 
+  const fetchDailyChallenges = async (userIdValue) => {
+    if (!userIdValue) return;
+    setLoadingChallenges(true);
+    try {
+      const response = await fetch(getApiUrl(`/daily-challenges/${userIdValue}`));
+      const data = await response.json();
+
+      if (data.success) {
+        const mapped = data.challenges.map(ch => ({
+          id: ch._id,
+          title: ch.title,
+          subtitle: ch.description,
+          amount: ch.amountPaise ? Math.floor(ch.amountPaise / 100) : (ch.amount || 0),
+          type: ch.status || ch.type || 'pending',
+          icon: ch.icon || 'checkmark-circle',
+          color: ch.color || '#10B981',
+          btnText: ch.btnText || 'Mark as Done',
+        }));
+        setDailyChallenges(mapped);
+      } else {
+        setDailyChallenges([]);
+      }
+    } catch (error) {
+      console.error("Error fetching challenges:", error);
+      setDailyChallenges([]);
+    } finally {
+      setLoadingChallenges(false);
+    }
+  };
+  const completeChallenge = async (challengeId) => {
+    if (!challengeId) return;
+    try {
+      setDailyChallenges(prev => prev.map(ch => ch.id === challengeId ? { ...ch, type: 'completed' } : ch));
+
+      const res = await fetch(getApiUrl(`/daily-challenges/${challengeId}/complete`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setDailyChallenges(prev => prev.map(ch => ch.id === challengeId ? { ...ch, type: 'pending' } : ch));
+        Alert.alert("Error", data.message || "Could not complete the challenge");
+      } else {
+        fetchMonthlyStats(userId);
+      }
+    } catch (err) {
+      console.error("Complete challenge error:", err);
+      Alert.alert("Error", "Network error. Try again.");
+      setDailyChallenges(prev => prev.map(ch => ch.id === challengeId ? { ...ch, type: 'pending' } : ch));
+    }
+  };
+
+
 
   const handleRefresh = async () => {
     if (!userId) return;
@@ -409,6 +470,7 @@ export default function GoalsScreen() {
       fetchBudgetData(userId),
       fetchJarsData(userId),
       fetchMonthlyStats(userId),
+      fetchDailyChallenges(userId), 
     ]);
     setRefreshing(false);
   };
@@ -547,7 +609,13 @@ export default function GoalsScreen() {
              </View>
 
              <View className="mb-8">
-               {MOCK_CHALLENGES.map(item => <ChallengeCard key={item.id} item={item} />)}
+               {loadingChallenges ? (
+                  <ActivityIndicator color="#10B981" size="small" className="my-4" />
+                ) : dailyChallenges.length === 0 ? (
+                  <Text className="text-slate-500 text-center py-6">No challenges for today</Text>
+                ) : (
+                  dailyChallenges.map(item => <ChallengeCard key={item.id} item={item} />)
+                )}
              </View>
 
              {/* Savings Jars Grid */}
