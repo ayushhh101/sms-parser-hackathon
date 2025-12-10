@@ -149,6 +149,7 @@ export default function CaptureScreen() {
 
     // Add extra fields if your backend needs them
     formData.append('userId', 'usr_rahul_001');
+    formData.append("language", "english");
 
     try {
       const backendURL = getApiUrl("/transactions/voice-log"); 
