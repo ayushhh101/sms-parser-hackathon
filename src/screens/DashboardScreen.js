@@ -183,12 +183,12 @@ export default function DashboardScreen() {
               <Ionicons name="notifications-outline" size={24} color="white" />
               <View className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border border-slate-900" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               className="bg-red-600 px-3 py-2 rounded-full" 
               onPress={handleLogout}
             >
               <Text className="text-white text-xs font-bold">Logout</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 

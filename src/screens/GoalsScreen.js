@@ -3,6 +3,7 @@ import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, StatusBar, Acti
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from '../utils/apiConfig';
+import moment from 'moment'; // <--- ADDED for Heatmap Date Logic
 
 // --- MOCK DATA FOR CHALLENGES ---
 const MOCK_CHALLENGES = [
@@ -20,25 +21,6 @@ const WEEKLY_PROGRESS = [
   { day: "Fri", status: "pending" },
   { day: "Sat", status: "pending" },
   { day: "Sun", status: "pending" },
-];
-
-// --- EXISTING MOCK DATA ---
-const MOCK_GOALS = [
-  { id: 1, title: "Diwali Fund", target: 5000, saved: 2350, deadline_days: 23, icon: "fire", color: "#F97316", bg: "bg-[#431407]" },
-  { id: 2, title: "Bike Service", target: 2000, saved: 1400, deadline_days: 8, icon: "motorbike", color: "#38BDF8", bg: "bg-[#0c4a6e]" }
-];
-
-const MOCK_HEATMAP = [
-  { day: 1, income: 2500, expense: 500 },
-  { day: 2, income: 2200, expense: 400 },
-  { day: 3, income: 0, expense: 1500 },
-  { day: 4, income: 1200, expense: 1100 },
-  { day: 5, income: 1500, expense: 200 },
-  { day: 6, income: 800, expense: 800 },
-  { day: 7, income: 3000, expense: 100 },
-  { day: 12, income: 0, expense: 2000 },
-  { day: 15, income: 1800, expense: 500 },
-  { day: 23, income: 5000, expense: 200 },
 ];
 
 const MOCK_SHIFTS = [
@@ -86,33 +68,89 @@ const GoalCard = ({ item }) => {
   );
 };
 
-// --- COMPONENT: Heatmap Grid ---
-const HeatmapGrid = ({ data }) => {
+// --- UPDATED COMPONENT: Heatmap Grid (Now Handles Real Data & Month Nav) ---
+const HeatmapGrid = ({ data, currentDate, onMonthChange, loading }) => {
+  
+  // Create a map for easy lookup: '2023-11-01' -> dataObject
   const dataMap = {};
-  data.forEach(item => dataMap[item.day] = item);
-  const getColor = (day) => {
-    const entry = dataMap[day];
-    if (!entry) return 'bg-slate-800';
-    if (entry.expense > entry.income) return 'bg-red-500';
-    if (entry.income > (entry.expense * 2) + 500) return 'bg-emerald-500';
-    return 'bg-amber-400';
+  if (data) {
+    data.forEach(item => {
+      dataMap[item.date] = item;
+    });
+  }
+
+  const getColor = (dayNum) => {
+    // Construct date string for lookup
+    const dateStr = currentDate.clone().date(dayNum).format('YYYY-MM-DD');
+    const entry = dataMap[dateStr];
+    
+    if (!entry) return 'bg-slate-800'; // Default Empty
+    
+    // Use Backend Status
+    switch (entry.status) {
+      case 'high_earning': return 'bg-emerald-500';
+      case 'heavy_expense': return 'bg-red-500';
+      case 'balanced': return 'bg-amber-400';
+      default: return 'bg-slate-800';
+    }
   };
+
+  // Helper to determine text color based on bg
+  const getTextColor = (dayNum) => {
+    const bgClass = getColor(dayNum);
+    return bgClass === 'bg-slate-800' ? 'text-slate-600' : 'text-[#0F172A]';
+  };
+
+  // Calculate days in the currently selected month
+  const daysInMonth = currentDate.daysInMonth();
+  const startDayOffset = currentDate.clone().startOf('month').day(); // 0 (Sun) to 6 (Sat)
+
   return (
-    <View className="bg-[#1E293B] p-4 rounded-3xl mb-6">
-      <View className="flex-row justify-center space-x-4 mb-4">
-        <View className="flex-row items-center"><View className="w-3 h-3 bg-emerald-500 rounded mr-2"/><Text className="text-slate-400 text-xs">High Profit</Text></View>
-        <View className="flex-row items-center"><View className="w-3 h-3 bg-amber-400 rounded mr-2"/><Text className="text-slate-400 text-xs">Balanced</Text></View>
-        <View className="flex-row items-center"><View className="w-3 h-3 bg-red-500 rounded mr-2"/><Text className="text-slate-400 text-xs">Loss</Text></View>
+    <View className="bg-[#1E293B] p-4 rounded-3xl mb-6 shadow-lg shadow-black/50">
+      
+      {/* Month Navigator */}
+      <View className="flex-row justify-between items-center mb-4 bg-slate-800/50 p-2 rounded-xl">
+        <TouchableOpacity onPress={() => onMonthChange(-1)} className="p-2">
+          <Ionicons name="caret-back" size={20} color="#60A5FA" />
+        </TouchableOpacity>
+        <Text className="text-white font-bold text-base">{currentDate.format('MMMM YYYY')}</Text>
+        <TouchableOpacity onPress={() => onMonthChange(1)} className="p-2">
+          <Ionicons name="caret-forward" size={20} color="#60A5FA" />
+        </TouchableOpacity>
       </View>
-      <View className="flex-row flex-wrap justify-between">
-        {['S','M','T','W','T','F','S'].map((d, i) => <Text key={i} className="text-slate-500 w-[13%] text-center mb-2 font-bold">{d}</Text>)}
-        <View className="w-[13%] aspect-square" /><View className="w-[13%] aspect-square" /><View className="w-[13%] aspect-square" /><View className="w-[13%] aspect-square" /><View className="w-[13%] aspect-square" />
-        {Array.from({ length: 30 }, (_, i) => i + 1).map((day) => (
-          <View key={day} className={`w-[13%] aspect-square ${getColor(day)} rounded-md mb-2 items-center justify-center`}>
-            <Text className={`font-bold text-xs ${getColor(day) === 'bg-slate-800' ? 'text-slate-600' : 'text-[#0F172A]'}`}>{day}</Text>
-          </View>
-        ))}
+
+      {/* Legend */}
+      <View className="flex-row justify-center space-x-3 mb-4">
+        <View className="flex-row items-center"><View className="w-3 h-3 bg-emerald-500 rounded mr-2"/><Text className="text-slate-400 text-[10px]">Profit</Text></View>
+        <View className="flex-row items-center"><View className="w-3 h-3 bg-amber-400 rounded mr-2"/><Text className="text-slate-400 text-[10px]">Balanced</Text></View>
+        <View className="flex-row items-center"><View className="w-3 h-3 bg-red-500 rounded mr-2"/><Text className="text-slate-400 text-[10px]">Loss</Text></View>
       </View>
+
+      {/* Grid */}
+      {loading ? (
+        <View className="h-40 justify-center items-center">
+          <ActivityIndicator size="small" color="#10B981" />
+        </View>
+      ) : (
+        <View className="flex-row flex-wrap">
+           {/* Header Days */}
+           {['S','M','T','W','T','F','S'].map((d, i) => (
+             <Text key={i} className="text-slate-500 w-[13.5%] text-center mb-2 font-bold text-xs">{d}</Text>
+           ))}
+           
+           {/* Empty slots for offset */}
+           {Array.from({ length: startDayOffset }).map((_, i) => (
+             <View key={`empty-${i}`} className="w-[13.5%] aspect-square m-[0.3%]" />
+           ))}
+
+           {/* Days */}
+           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
+             <View key={day} className={`w-[13.5%] aspect-square m-[0.3%] ${getColor(day)} rounded-md items-center justify-center`}>
+               <Text className={`font-bold text-xs ${getTextColor(day)}`}>{day}</Text>
+             </View>
+           ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -235,6 +273,11 @@ export default function GoalsScreen() {
   const [dailyChallenges, setDailyChallenges] = useState([]);
   const [loadingChallenges, setLoadingChallenges] = useState(true);
 
+  // --- HEATMAP STATE (New) ---
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [currentHeatmapDate, setCurrentHeatmapDate] = useState(moment());
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+
 
   const openDepositModal = (jar) => {
     setSelectedJar(jar);
@@ -290,6 +333,13 @@ export default function GoalsScreen() {
     loadUserData();
   }, []);
 
+  // --- TRIGGER HEATMAP FETCH WHEN VIEWING INSIGHTS ---
+  useEffect(() => {
+    if (viewMode === 'Insights' && userId) {
+      fetchHeatmapData(userId, currentHeatmapDate);
+    }
+  }, [viewMode, currentHeatmapDate, userId]);
+
   const loadUserData = async () => {
     try {
       const storedUserData = await AsyncStorage.getItem("userData");
@@ -310,16 +360,16 @@ export default function GoalsScreen() {
   };
 
   const fetchUserStats = async (userIdValue) => {
-  try {
-    const response = await fetch(getApiUrl(`/users/${userIdValue}`));
-    const data = await response.json();
-    if (data.success && data.user.stats) {
-      setUnallocatedCash(data.user.stats.unallocatedCash || 0);
+    try {
+      const response = await fetch(getApiUrl(`/users/${userIdValue}`));
+      const data = await response.json();
+      if (data.success && data.user.stats) {
+        setUnallocatedCash(data.user.stats.unallocatedCash || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
     }
-  } catch (error) {
-    console.error("Error fetching stats:", error);
-  }
-};
+  };
 
   const fetchMonthlyStats = async (userIdValue) => {
     try {
@@ -396,7 +446,6 @@ export default function GoalsScreen() {
       const data = await response.json();
 
       if (data.success && data.data) {
-        // We append the "New Jar" button logic here locally so the UI renders it last
         const jarsWithAddButton = [
           ...data.data, 
           { id: 'add-new', isAdd: true }
@@ -461,17 +510,48 @@ export default function GoalsScreen() {
     }
   };
 
+  // --- FETCH HEATMAP DATA (New) ---
+  const fetchHeatmapData = async (uid, dateMoment) => {
+    try {
+      setHeatmapLoading(true);
+      const month = dateMoment.month() + 1; // 1-12
+      const year = dateMoment.year();
+
+      const response = await fetch(getApiUrl(`/heatmap?userId=${uid}&month=${month}&year=${year}`));
+      const result = await response.json();
+
+      if (result.data) {
+        setHeatmapData(result.data);
+      }
+    } catch (error) {
+      console.error("Heatmap Fetch Error:", error);
+    } finally {
+      setHeatmapLoading(false);
+    }
+  };
+
+  const handleHeatmapMonthChange = (direction) => {
+    setCurrentHeatmapDate(moment(currentHeatmapDate).add(direction, 'months'));
+    // The useEffect will trigger the fetch
+  };
 
 
   const handleRefresh = async () => {
     if (!userId) return;
     setRefreshing(true);
-    await Promise.all([
+    const promises = [
       fetchBudgetData(userId),
       fetchJarsData(userId),
       fetchMonthlyStats(userId),
       fetchDailyChallenges(userId), 
-    ]);
+    ];
+    
+    // Also refresh heatmap if active
+    if (viewMode === 'Insights') {
+      promises.push(fetchHeatmapData(userId, currentHeatmapDate));
+    }
+
+    await Promise.all(promises);
     setRefreshing(false);
   };
 
@@ -660,8 +740,13 @@ export default function GoalsScreen() {
           <>
             <View className="mb-6"><Text className="text-white text-2xl font-bold">Cash Flow Heatmap</Text><Text className="text-slate-400 text-xs">See your money patterns</Text></View>
             
-            {/* Heatmap - Mock Data */}
-            <HeatmapGrid data={MOCK_HEATMAP} />
+            {/* Heatmap - REAL DATA */}
+            <HeatmapGrid 
+              data={heatmapData} 
+              currentDate={currentHeatmapDate}
+              onMonthChange={handleHeatmapMonthChange}
+              loading={heatmapLoading}
+            />
 
             <View className="bg-[#2E1065] p-5 rounded-3xl mb-8 border border-purple-500/30">
               <View className="flex-row items-center mb-4"><MaterialCommunityIcons name="star-four-points" size={16} color="#Facc15" style={{marginRight:6}} /><Text className="text-white font-bold">Your Best Earning Shifts</Text></View>
