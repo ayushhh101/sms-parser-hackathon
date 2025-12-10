@@ -3,7 +3,7 @@ import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, StatusBar, Acti
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from '../utils/apiConfig';
-import moment from 'moment'; // <--- ADDED for Heatmap Date Logic
+import moment from 'moment'; 
 
 // --- MOCK DATA FOR CHALLENGES ---
 const MOCK_CHALLENGES = [
@@ -68,7 +68,7 @@ const GoalCard = ({ item }) => {
   );
 };
 
-// --- UPDATED COMPONENT: Heatmap Grid (Now Handles Real Data & Month Nav) ---
+//  Heatmap Grid 
 const HeatmapGrid = ({ data, currentDate, onMonthChange, loading }) => {
   
   // Create a map for easy lookup: '2023-11-01' -> dataObject
@@ -211,11 +211,11 @@ const ChallengeCard = ({ item }) => {
   );
 }
 
-// --- UPDATED JAR ITEM (Receives onAddPress) ---
-const JarItem = ({ item, onAddPress }) => {
+// --- UPDATED JAR ITEM  ---
+const JarItem = ({ item, onAddPress, onOptionsPress }) => {
   if (item.isAdd) {
     return (
-      <TouchableOpacity className="w-[48%] bg-[#1E293B] aspect-[0.85] rounded-2xl border-2 border-dashed border-slate-700 items-center justify-center mb-4">
+      <TouchableOpacity onPress={onAddPress} className="w-[48%] bg-[#1E293B] aspect-[0.85] rounded-2xl border-2 border-dashed border-slate-700 items-center justify-center mb-4">
         <View className="w-12 h-12 rounded-full bg-slate-700 items-center justify-center mb-2">
           <Ionicons name="add" size={24} color="#94A3B8" />
         </View>
@@ -241,7 +241,14 @@ const JarItem = ({ item, onAddPress }) => {
         <Text className="text-slate-300 text-[10px] text-center">{Math.round(progress)}% of ₹{item.target}</Text>
       </View>
 
-      {/* OPEN THE MODAL ON PRESS */}
+      <TouchableOpacity 
+        className="absolute top-2 right-2 p-2 z-10" 
+        onPress={() => onOptionsPress(item)}
+      >
+        <Ionicons name="ellipsis-vertical" size={16} color="white" />
+      </TouchableOpacity>
+
+      
       <TouchableOpacity 
         className="bg-black/20 py-2.5 rounded-xl flex-row items-center justify-center border border-white/10"
         onPress={() => onAddPress(item)} 
@@ -279,13 +286,45 @@ export default function GoalsScreen() {
   const [heatmapLoading, setHeatmapLoading] = useState(false);
 
 
+  //saving jars
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [newJarTitle, setNewJarTitle] = useState('');
+  const [newJarTarget, setNewJarTarget] = useState('');
+  const [newJarDuration, setNewJarDuration] = useState(3); 
+  const [newJarIcon, setNewJarIcon] = useState('piggy-bank');
+  const [newJarColor, setNewJarColor] = useState('#10B981'); 
+  const [isCreating, setIsCreating] = useState(false);
+
+
+  const [optionsModalVisible, setOptionsModalVisible] = useState(false);
+  const [jarToEdit, setJarToEdit] = useState(null); 
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  const ICONS = ['piggy-bank', 'car', 'home', 'gift', 'airplane', 'school', 'medical-bag', 'laptop'];
+ 
+  const THEMES = [
+    { hex: '#10B981', bg: 'bg-[#064E3B]' }, // Emerald -> Dark Green
+    { hex: '#3B82F6', bg: 'bg-[#1E3A8A]' }, // Blue -> Dark Blue
+    { hex: '#F59E0B', bg: 'bg-[#78350F]' }, // Amber -> Dark Orange/Brown
+    { hex: '#EF4444', bg: 'bg-[#450A0A]' }, // Red -> Dark Red
+    { hex: '#8B5CF6', bg: 'bg-[#4A044E]' }, // Violet -> Dark Purple
+    { hex: '#EC4899', bg: 'bg-[#4C0519]' }, // Pink -> Dark Rose
+  ];
+  const DURATIONS = [
+    { label: '1 M', value: 1 },
+    { label: '3 M', value: 3 },
+    { label: '6 M', value: 6 },
+    { label: '1 Y', value: 12 },
+  ];
+
+
   const openDepositModal = (jar) => {
     setSelectedJar(jar);
     setDepositAmount(jar.suggested_amt ? jar.suggested_amt.toString() : '');
     setModalVisible(true);
   };
 
-  // 2. HANDLE DEPOSIT (API CALL)
+  //  HANDLE DEPOSIT 
   const handleDeposit = async () => {
     if (!depositAmount || isNaN(depositAmount) || Number(depositAmount) <= 0) {
       Alert.alert("Error", "Please enter a valid amount");
@@ -333,7 +372,131 @@ export default function GoalsScreen() {
     loadUserData();
   }, []);
 
-  // --- TRIGGER HEATMAP FETCH WHEN VIEWING INSIGHTS ---
+  //CREATE NEW JAR
+  const handleCreateJar = async () => {
+    // 1. Validation
+    if (!newJarTitle.trim() || !newJarTarget || isNaN(newJarTarget)) {
+      Alert.alert("Missing Info", "Please enter a title and a valid target amount.");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const deadlineDate = moment().add(newJarDuration, 'months').toDate();
+      const selectedTheme = THEMES.find(t => t.hex === newJarColor);
+      const bgClass = selectedTheme ? selectedTheme.bg : 'bg-slate-800'; 
+
+      const payload = {
+        userId: userId,
+        title: newJarTitle,
+        target: Number(newJarTarget),
+        deadline: deadlineDate,
+        icon: newJarIcon,
+        color: newJarColor,
+        bg: bgClass 
+      };
+
+    
+      let url = '/jars';
+      let method = 'POST';
+
+      if (isEditMode && jarToEdit) {
+        url = `/jars/${jarToEdit._id || jarToEdit.id}`;
+        method = 'PUT';
+      }
+
+    
+      const response = await fetch(getApiUrl(url), {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setCreateModalVisible(false);
+        
+        //
+        setIsEditMode(false);
+        setJarToEdit(null);
+        setNewJarTitle('');
+        setNewJarTarget('');
+        setNewJarIcon('piggy-bank');
+        setNewJarColor('#10B981'); 
+        
+        Alert.alert("Success", isEditMode ? "Jar updated successfully!" : "New Savings Jar created!");
+        fetchJarsData(userId); // Refresh list
+      } else {
+        Alert.alert("Error", data.message || "Could not save jar.");
+      }
+    } catch (error) {
+      console.error("Save Jar Error:", error);
+      Alert.alert("Error", "Network error. Please try again.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+
+  
+  const openJarOptions = (jar) => {
+    setJarToEdit(jar);
+    setOptionsModalVisible(true);
+  };
+
+ 
+  const handleDeleteJar = async () => {
+    if (!jarToEdit) return;
+
+    Alert.alert(
+      "Delete Jar?",
+      `Are you sure you want to delete "${jarToEdit.title}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              const response = await fetch(getApiUrl(`/jars/${jarToEdit._id || jarToEdit.id}`), {
+                method: 'DELETE',
+              });
+              const data = await response.json();
+              
+              if (data.success) {
+                setOptionsModalVisible(false);
+                fetchJarsData(userId); // Refresh list
+              } else {
+                Alert.alert("Error", data.message);
+              }
+            } catch (error) {
+              Alert.alert("Error", "Could not delete jar");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  
+  const handleEditPress = () => {
+    setOptionsModalVisible(false); 
+    
+    
+    setNewJarTitle(jarToEdit.title);
+    setNewJarTarget(jarToEdit.target.toString());
+    setNewJarIcon(jarToEdit.icon);
+    setNewJarColor(jarToEdit.color);
+    
+    
+    setIsEditMode(true); 
+    setCreateModalVisible(true); 
+  };
+
+
+
+  
   useEffect(() => {
     if (viewMode === 'Insights' && userId) {
       fetchHeatmapData(userId, currentHeatmapDate);
@@ -510,7 +673,7 @@ export default function GoalsScreen() {
     }
   };
 
-  // --- FETCH HEATMAP DATA (New) ---
+  // --- FETCH HEATMAP DATA  ---
   const fetchHeatmapData = async (uid, dateMoment) => {
     try {
       setHeatmapLoading(true);
@@ -532,7 +695,6 @@ export default function GoalsScreen() {
 
   const handleHeatmapMonthChange = (direction) => {
     setCurrentHeatmapDate(moment(currentHeatmapDate).add(direction, 'months'));
-    // The useEffect will trigger the fetch
   };
 
 
@@ -546,7 +708,7 @@ export default function GoalsScreen() {
       fetchDailyChallenges(userId), 
     ];
     
-    // Also refresh heatmap if active
+    
     if (viewMode === 'Insights') {
       promises.push(fetchHeatmapData(userId, currentHeatmapDate));
     }
@@ -632,7 +794,7 @@ export default function GoalsScreen() {
             {/* Filter out the 'add-new' button we added for the other screen */}
             {jarsData.filter(jar => !jar.isAdd).length > 0 ? (
               jarsData
-                .filter(jar => !jar.isAdd) // Remove the "+" button dummy item
+                .filter(jar => !jar.isAdd) 
                 .map((jar) => (
                   <GoalCard key={jar._id || jar.id} item={jar} />
                 ))
@@ -704,9 +866,40 @@ export default function GoalsScreen() {
                 <Text className="text-white font-bold text-lg ml-2">Savings Jars</Text>
              </View>
 
-             <View className="flex-row flex-wrap justify-between mb-6">
+             {/* <View className="flex-row flex-wrap justify-between mb-6">
                 {jarsData.map(jar => <JarItem key={jar.id} item={jar} onAddPress={openDepositModal}/>)}
-             </View>
+             </View> */}
+
+             {/* <View className="flex-row flex-wrap justify-between mb-6">
+              {jarsData.map(jar => (
+               <JarItem 
+                key={jar.id || jar._id} 
+                item={jar} 
+               onAddPress={jar.isAdd ? () => setCreateModalVisible(true) : openDepositModal}
+                />
+               ))}
+              </View> */}
+
+              <View className="flex-row flex-wrap justify-between mb-6">
+  {jarsData.map(jar => (
+    <JarItem 
+      key={jar.id || jar._id} 
+      item={jar} 
+      
+      
+      onAddPress={jar.isAdd ? () => {
+          setIsEditMode(false);       // Ensure we are in create mode, not edit
+          setNewJarTitle('');         // Clear title
+          setNewJarTarget('');        // Clear amount
+          setNewJarColor('#10B981');  // Reset color
+          setCreateModalVisible(true); 
+      } : openDepositModal}
+
+     
+      onOptionsPress={openJarOptions} 
+    />
+  ))}
+</View>
 
              {/* Weekly Progress */}
              <View className="bg-[#1E293B] p-5 rounded-2xl mb-6">
@@ -833,6 +1026,159 @@ export default function GoalsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+        
+        {/* --- CREATE NEW JAR MODAL --- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={createModalVisible}
+        onRequestClose={() => setCreateModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1 justify-end"
+        >
+          {/* Dimmed Background */}
+          <TouchableOpacity 
+            className="absolute top-0 bottom-0 left-0 right-0 bg-black/80" 
+            activeOpacity={1} 
+            onPress={() => setCreateModalVisible(false)}
+          />
+
+          <View className="bg-[#1E293B] rounded-t-3xl p-6 border-t border-slate-700 h-[85%]">
+            <ScrollView showsVerticalScrollIndicator={false}>
+              
+              <View className="items-center mb-6">
+                <View className="w-12 h-1 bg-slate-600 rounded-full mb-4" />
+                <Text className="text-white text-xl font-bold">Create New Jar</Text>
+              </View>
+
+              {/*  NAME */}
+              <Text className="text-slate-400 text-xs font-bold uppercase mb-2">Goal Name</Text>
+              <TextInput 
+                className="bg-slate-900 text-white p-4 rounded-xl border border-slate-700 mb-6 font-bold text-lg"
+                placeholder="e.g. New Bike, Diwali"
+                placeholderTextColor="#64748B"
+                value={newJarTitle}
+                onChangeText={setNewJarTitle}
+              />
+
+              {/*  TARGET AMOUNT */}
+              <Text className="text-slate-400 text-xs font-bold uppercase mb-2">Target Amount (₹)</Text>
+              <TextInput 
+                className="bg-slate-900 text-white p-4 rounded-xl border border-slate-700 mb-6 font-bold text-lg"
+                placeholder="10000"
+                placeholderTextColor="#64748B"
+                keyboardType="numeric"
+                value={newJarTarget}
+                onChangeText={setNewJarTarget}
+              />
+
+              {/*  DURATION  */}
+              <Text className="text-slate-400 text-xs font-bold uppercase mb-2">Time to achieve</Text>
+              <View className="flex-row justify-between mb-6">
+                {DURATIONS.map((dur) => (
+                  <TouchableOpacity 
+                    key={dur.value}
+                    onPress={() => setNewJarDuration(dur.value)}
+                    className={`flex-1 mx-1 py-3 rounded-xl items-center border ${newJarDuration === dur.value ? 'bg-emerald-600 border-emerald-400' : 'bg-slate-800 border-slate-700'}`}
+                  >
+                    <Text className={`font-bold ${newJarDuration === dur.value ? 'text-white' : 'text-slate-400'}`}>{dur.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/*  CHOOSE ICON */}
+              <Text className="text-slate-400 text-xs font-bold uppercase mb-2">Choose Icon</Text>
+              <View className="flex-row flex-wrap mb-6 bg-slate-900 p-3 rounded-2xl border border-slate-800">
+                {ICONS.map((icon) => (
+                  <TouchableOpacity 
+                    key={icon}
+                    onPress={() => setNewJarIcon(icon)}
+                    className={`p-3 m-1 rounded-full ${newJarIcon === icon ? 'bg-white' : 'bg-slate-800'}`}
+                  >
+                    <MaterialCommunityIcons name={icon} size={24} color={newJarIcon === icon ? '#1E293B' : '#64748B'} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              
+              {/* COLOR */}
+            <Text className="text-slate-400 text-xs font-bold uppercase mb-2">Color Theme</Text>
+            <View className="flex-row justify-between mb-8 bg-slate-900 p-3 rounded-2xl border border-slate-800">
+             {THEMES.map((theme) => (
+               <TouchableOpacity 
+               key={theme.hex}
+               onPress={() => setNewJarColor(theme.hex)}
+               style={{ backgroundColor: theme.hex }}
+               className={`w-10 h-10 rounded-full items-center justify-center ${newJarColor === theme.hex ? 'border-4 border-white' : ''}`}
+                >
+               {newJarColor === theme.hex && <Ionicons name="checkmark" size={20} color="white" />}
+               </TouchableOpacity>
+               ))}
+             </View>
+
+              {/* SPACER FOR SCROLL */}
+              <View className="h-20" />
+            </ScrollView>
+
+            {/* FIXED BOTTOM BUTTON */}
+            <View className="absolute bottom-6 left-6 right-6">
+              <TouchableOpacity 
+                className="bg-emerald-500 py-4 rounded-2xl items-center shadow-lg shadow-emerald-500/20"
+                onPress={handleCreateJar}
+                disabled={isCreating}
+              >
+                {isCreating ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-white font-bold text-lg">Create Goal Jar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* --- OPTIONS MODAL --- */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={optionsModalVisible}
+        onRequestClose={() => setOptionsModalVisible(false)}
+      >
+        <TouchableOpacity 
+          className="flex-1 bg-black/60 justify-center items-center p-6"
+          activeOpacity={1}
+          onPress={() => setOptionsModalVisible(false)}
+        >
+          <View className="bg-[#1E293B] w-full max-w-sm rounded-2xl p-4 border border-slate-700">
+            <Text className="text-white font-bold text-center text-lg mb-6">
+              Manage "{jarToEdit?.title}"
+            </Text>
+
+            {/* Edit Button */}
+            <TouchableOpacity 
+              className="bg-slate-700 p-4 rounded-xl flex-row items-center mb-3"
+              onPress={handleEditPress}
+            >
+              <Ionicons name="pencil" size={20} color="#3B82F6" style={{marginRight: 12}} />
+              <Text className="text-white font-bold text-base">Edit Details</Text>
+            </TouchableOpacity>
+
+            {/* Delete Button */}
+            <TouchableOpacity 
+              className="bg-red-500/10 p-4 rounded-xl flex-row items-center"
+              onPress={handleDeleteJar}
+            >
+              <Ionicons name="trash" size={20} color="#EF4444" style={{marginRight: 12}} />
+              <Text className="text-red-400 font-bold text-base">Delete Jar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </SafeAreaView>
   );
 }

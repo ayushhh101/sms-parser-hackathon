@@ -8,7 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import GoalsScreen from './src/screens/GoalsScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import CaptureScreen from './src/screens/CaptureScreen';
-
+import RiskDetectorScreen from './src/screens/RiskDetectorScreen';
 
 import DashboardScreen from './src/screens/DashboardScreen';
 import TestScreen from './src/screens/TestScreen';
@@ -19,6 +19,7 @@ import OTPVerificationScreen from './src/screens/OTPVerificationScreen';
 import ProfileSetupScreen from './src/screens/ProfileSetupScreen';
 import PermissionsScreen from './src/screens/PermissionsScreen';
 import SMSParserScreen from './src/screens/SMSParserScreen';
+import MoneyStoryScreen from './src/screens/MoneyStoryScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -102,6 +103,17 @@ function HomeTabs() {
       />
 
       <Tab.Screen 
+        name="RiskDetector" 
+        component={RiskDetectorScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="shield-alert-outline" size={size} color={color} />
+          ),
+          tabBarLabel: 'Risk'
+        }}
+      />
+
+      <Tab.Screen 
         name="Capture" 
         component={CaptureScreen}
         options={{
@@ -111,6 +123,18 @@ function HomeTabs() {
           tabBarLabel: 'Capture'
         }}
       />
+
+      <Tab.Screen 
+        name="Story" 
+        component={MoneyStoryScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="book-outline" size={size} color={color} />
+          ),
+          tabBarLabel: 'Story'
+        }}
+      />
+
       
       
       

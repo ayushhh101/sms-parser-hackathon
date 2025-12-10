@@ -266,19 +266,19 @@ export default function CaptureScreen() {
 
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0F172A]">
+    <SafeAreaView className="flex-1 bg-[#0f0f1a]">
       <StatusBar barStyle="light-content" />
       
-      <ScrollView className="flex-1 px-5 pt-6" showsVerticalScrollIndicator={false}>
-        
-        {/* HEADER */}
-        <View className="flex-row items-center mb-6">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="bg-slate-800 p-2 rounded-full mr-4">
-            <Ionicons name="chevron-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text className="text-white text-2xl font-bold">Data Capture</Text>
+      {/* HEADER - Outside ScrollView to stick */}
+      <View className="px-4 py-3.5 border-b border-slate-700 flex-row justify-center items-center">
+        <View>
+          <Text className="text-white text-2xl font-bold text-center">Data Capture</Text>
+          <Text className="text-slate-400 text-sm text-center mt-1">SMS, Voice & Manual Entry</Text>
         </View>
-
+      </View>
+      
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="px-5 pt-6">
         {/* TAB SWITCHER */}
         <View className="flex-row bg-[#1E293B] p-1 rounded-2xl mb-6">
           <TabButton title="SMS" icon="chatbox-ellipses" isActive={activeTab === 'SMS'} onPress={() => setActiveTab('SMS')} />
@@ -552,6 +552,7 @@ export default function CaptureScreen() {
           </View>
         )}
 
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
