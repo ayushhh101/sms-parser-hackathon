@@ -173,36 +173,49 @@ const ShiftCard = ({ item }) => (
 );
 
 // --- COMPONENT: Challenge Card ---
-const ChallengeCard = ({ item }) => {
-  const isActive = item.type === 'active';
+const ChallengeCard = ({ item, onComplete }) => {
+  const isCompleted = item.type === 'completed';
+  const isPending = item.type === 'pending';
   
   return (
-    <View className={`p-4 rounded-2xl mb-3 border ${isActive ? 'bg-[#064e3b] border-emerald-500/50' : 'bg-[#1E293B] border-slate-700/50'}`}>
+    <View className={`p-4 rounded-2xl mb-3 border ${
+      isCompleted 
+        ? 'bg-[#064e3b] border-emerald-500/50' 
+        : 'bg-[#1E293B] border-slate-700/50'
+    }`}>
       <View className="flex-row justify-between items-start mb-2">
         <View className="flex-row items-center flex-1 pr-2">
-           <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${isActive ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-             <Ionicons name={item.icon} size={20} color={isActive ? "white" : item.color} />
+           <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+             isCompleted ? 'bg-emerald-500' : 'bg-slate-700'
+           }`}>
+             <Ionicons 
+               name={isCompleted ? 'checkmark-circle' : item.icon} 
+               size={20} 
+               color={isCompleted ? "white" : item.color} 
+             />
            </View>
            <View className="flex-1">
              <Text className="text-white font-bold text-base">{item.title}</Text>
              <Text className="text-slate-400 text-xs">{item.subtitle}</Text>
            </View>
         </View>
-        <View className="bg-white/10 px-2 py-1 rounded-lg">
-          <Text className="text-white font-bold text-xs">+{item.amount}</Text>
+        <View className={`px-2 py-1 rounded-lg ${isCompleted ? 'bg-emerald-500/20' : 'bg-white/10'}`}>
+          <Text className={`font-bold text-xs ${isCompleted ? 'text-emerald-400' : 'text-white'}`}>
+            +₹{item.amount}
+          </Text>
         </View>
       </View>
 
-      {/* Progress Bar or Action Button Area */}
-      {isActive ? (
-         <View className="mt-2 h-1.5 bg-emerald-900 rounded-full overflow-hidden">
-            <View className="h-full bg-emerald-400 w-1/3 rounded-full" />
+      {/* Action Button or Completion Status */}
+      {isCompleted ? (
+         <View className="mt-2 bg-emerald-900/30 py-2 rounded-lg items-center border border-emerald-500/30">
+           <Text className="text-emerald-400 font-bold text-xs">✓ Completed</Text>
          </View>
       ) : (
         <TouchableOpacity
-          className="mt-2 bg-slate-700/50 py-2 rounded-lg items-center border border-slate-600"
-          onPress={() => completeChallenge(item.id)}
-          disabled={item.type === 'completed'}
+          className="mt-2 bg-slate-700/50 py-2 rounded-lg items-center border border-slate-600 active:bg-slate-600"
+          onPress={() => onComplete(item.challengeId)}
+          disabled={isCompleted}
         >
           <Text className="text-amber-500 font-bold text-xs">{item.btnText}</Text>
         </TouchableOpacity>
@@ -629,14 +642,15 @@ export default function GoalsScreen() {
 
       if (data.success) {
         const mapped = data.challenges.map(ch => ({
-          id: ch._id,
+          id: ch._id || ch.challengeId,
+          challengeId: ch.challengeId,
           title: ch.title,
           subtitle: ch.description,
-          amount: ch.amountPaise ? Math.floor(ch.amountPaise / 100) : (ch.amount || 0),
-          type: ch.status || ch.type || 'pending',
+          amount: ch.rewardPaise ? Math.floor(ch.rewardPaise / 100) : (ch.amount || 0),
+          type: ch.status === 'completed' ? 'completed' : (ch.status === 'active' ? 'pending' : ch.status),
           icon: ch.icon || 'checkmark-circle',
           color: ch.color || '#10B981',
-          btnText: ch.btnText || 'Mark as Done',
+          btnText: ch.status === 'completed' ? 'Completed' : 'Mark as Done',
         }));
         setDailyChallenges(mapped);
       } else {
@@ -649,27 +663,69 @@ export default function GoalsScreen() {
       setLoadingChallenges(false);
     }
   };
-  const completeChallenge = async (challengeId) => {
-    if (!challengeId) return;
+  const completeChallenge = async (challengeId, jarId = null) => {
+    if (!challengeId || !userId) return;
+    
     try {
-      setDailyChallenges(prev => prev.map(ch => ch.id === challengeId ? { ...ch, type: 'completed' } : ch));
+      // Optimistically update UI
+      setDailyChallenges(prev => prev.map(ch => 
+        ch.challengeId === challengeId ? { ...ch, type: 'completed', btnText: 'Completed' } : ch
+      ));
 
-      const res = await fetch(getApiUrl(`/daily-challenges/${challengeId}/complete`), {
+      const requestBody = { userId };
+      if (jarId) {
+        requestBody.jarId = jarId;
+      }
+
+      const response = await fetch(getApiUrl(`/daily-challenges/${challengeId}/complete`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify(requestBody)
       });
-      const data = await res.json();
-      if (!data.success) {
-        setDailyChallenges(prev => prev.map(ch => ch.id === challengeId ? { ...ch, type: 'pending' } : ch));
-        Alert.alert("Error", data.message || "Could not complete the challenge");
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show success message with reward details
+        const rewardAmount = data.challenge?.rewardAmount || (data.challenge?.rewardPaise / 100) || 0;
+        const jarMessage = data.jar ? `\nAdded to ${data.jar.title}` : '';
+        
+        Alert.alert(
+          "🎉 Challenge Complete!",
+          `${data.message || `Great job! You earned ₹${rewardAmount}`}${jarMessage}`,
+          [{ text: "Awesome!", onPress: () => {} }]
+        );
+
+        // Update dashboard stats immediately from backend response
+        if (data.dashboard) {
+          setUnallocatedCash(data.dashboard.unallocatedCash || 0);
+          setMonthlyStats({
+            total: data.dashboard.monthlySavings || 0,
+            count: data.dashboard.monthlyTransactions || 0
+          });
+        }
+
+        // Refresh all related data
+        await Promise.all([
+          fetchDailyChallenges(userId),
+          fetchJarsData(userId),
+          fetchUserStats(userId),
+          fetchMonthlyStats(userId)
+        ]);
       } else {
-        fetchMonthlyStats(userId);
+        // Revert optimistic update on error
+        setDailyChallenges(prev => prev.map(ch => 
+          ch.challengeId === challengeId ? { ...ch, type: 'pending', btnText: 'Mark as Done' } : ch
+        ));
+        Alert.alert("Error", data.message || "Could not complete the challenge");
       }
     } catch (err) {
       console.error("Complete challenge error:", err);
-      Alert.alert("Error", "Network error. Try again.");
-      setDailyChallenges(prev => prev.map(ch => ch.id === challengeId ? { ...ch, type: 'pending' } : ch));
+      // Revert optimistic update on error
+      setDailyChallenges(prev => prev.map(ch => 
+        ch.challengeId === challengeId ? { ...ch, type: 'pending', btnText: 'Mark as Done' } : ch
+      ));
+      Alert.alert("Error", "Network error. Please try again.");
     }
   };
 
@@ -824,17 +880,17 @@ export default function GoalsScreen() {
              </View>
 
              {/* Green Stats Card */}
-             <View className="bg-[#10B981] rounded-3xl p-6 mb-6">
+             <View className="bg-[#10B981] rounded-3xl p-6 mb-6 shadow-lg shadow-emerald-500/20">
                 <Text className="text-emerald-900 font-medium mb-1">Total Saved This Month</Text>
-                <Text className="text-white font-bold text-4xl mb-4">₹{monthlyStats.total.toLocaleString('en-IN')}</Text>
+                <Text className="text-white font-bold text-4xl mb-4">₹{Math.floor(monthlyStats.total).toLocaleString('en-IN')}</Text>
                 <View className="flex-row gap-3">
                    <View className="bg-emerald-800/20 px-3 py-1.5 rounded-lg flex-row items-center border border-emerald-400/30">
                       <Ionicons name="trophy" size={14} color="#FFD700" style={{marginRight: 6}} />
-                      <Text className="text-white text-xs font-bold">12 challenges done</Text>
+                      <Text className="text-white text-xs font-bold">{monthlyStats.count} challenges done</Text>
                    </View>
                    <View className="bg-emerald-800/20 px-3 py-1.5 rounded-lg flex-row items-center border border-emerald-400/30">
-                      <Ionicons name="flame" size={14} color="#FB923C" style={{marginRight: 6}} />
-                      <Text className="text-white text-xs font-bold">5 day streak</Text>
+                      <Ionicons name="wallet" size={14} color="#FB923C" style={{marginRight: 6}} />
+                      <Text className="text-white text-xs font-bold">₹{Math.floor(unallocatedCash)} available</Text>
                    </View>
                 </View>
              </View>
@@ -846,7 +902,9 @@ export default function GoalsScreen() {
                    <Text className="text-white font-bold text-lg ml-2">Today's Challenges</Text>
                 </View>
                 <View className="bg-slate-800 px-2 py-1 rounded-md">
-                  <Text className="text-slate-400 text-xs">4 tasks</Text>
+                  <Text className="text-slate-400 text-xs">
+                    {dailyChallenges.filter(ch => ch.type === 'completed').length}/{dailyChallenges.length} done
+                  </Text>
                 </View>
              </View>
 
@@ -854,9 +912,19 @@ export default function GoalsScreen() {
                {loadingChallenges ? (
                   <ActivityIndicator color="#10B981" size="small" className="my-4" />
                 ) : dailyChallenges.length === 0 ? (
-                  <Text className="text-slate-500 text-center py-6">No challenges for today</Text>
+                  <View className="bg-[#1E293B] p-6 rounded-2xl items-center border border-dashed border-slate-700">
+                    <Ionicons name="calendar-outline" size={40} color="#64748B" style={{marginBottom: 8}} />
+                    <Text className="text-slate-400 text-center">No challenges for today</Text>
+                    <Text className="text-slate-500 text-xs text-center mt-2">Check back tomorrow for new tasks!</Text>
+                  </View>
                 ) : (
-                  dailyChallenges.map(item => <ChallengeCard key={item.id} item={item} />)
+                  dailyChallenges.map(item => (
+                    <ChallengeCard 
+                      key={item.id || item.challengeId} 
+                      item={item} 
+                      onComplete={completeChallenge}
+                    />
+                  ))
                 )}
              </View>
 

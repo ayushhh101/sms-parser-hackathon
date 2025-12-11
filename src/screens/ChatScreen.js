@@ -25,7 +25,7 @@ export default function CoachScreen() {
     }
   ]);
 
-  const PYTHON_BACKEND_URL = "http://192.168.29.121:8000/query";
+  const PYTHON_BACKEND_URL = "http://10.0.49.44:8000/query";
 
   // ---------------- SEND MESSAGE TO BACKEND ----------------
   const sendMessageToBackend = async (query) => {

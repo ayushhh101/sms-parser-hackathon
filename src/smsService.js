@@ -128,3 +128,80 @@ export const filterTransactions = (transactions, filterType) => {
       return transactions;
   }
 };
+
+// Save parsed SMS transaction to backend
+export const saveSMSToBackend = async (parsedSMS, userId) => {
+  try {
+    // Import getApiUrl dynamically
+    const { getApiUrl } = require('./utils/apiConfig');
+    
+    // Skip if it's just an OTP without transaction
+    if (parsedSMS.isOTP && !parsedSMS.amount) {
+      console.log('Skipping OTP-only SMS:', parsedSMS.otp);
+      return null;
+    }
+
+    // Skip if no amount
+    if (!parsedSMS.amount) {
+      console.log('Skipping SMS without amount');
+      return null;
+    }
+
+    // Convert to backend transaction format
+    const transactionType = parsedSMS.type === 'credit' || parsedSMS.type === 'cashback' ? 'income' : 'expense';
+    
+    const transaction = {
+      txId: `sms_${parsedSMS.id || Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId: userId,
+      amountPaise: Math.round(parsedSMS.amount * 100), // Convert to paise
+      type: transactionType,
+      category: parsedSMS.category || 'miscellaneous',
+      merchant: parsedSMS.merchant || parsedSMS.sender,
+      description: parsedSMS.message?.substring(0, 200) || 'SMS transaction',
+      timestamp: new Date(parsedSMS.timestamp),
+      source: 'sms',
+      metadata: {
+        sender: parsedSMS.sender,
+        balance: parsedSMS.balance,
+        account: parsedSMS.account,
+        rawMessage: parsedSMS.message
+      }
+    };
+
+    // Send to backend
+    const url = getApiUrl('/transactions');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(transaction)
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log('✅ Transaction saved:', transaction.txId, '₹' + parsedSMS.amount);
+      return result.transaction;
+    } else {
+      console.error('❌ Failed to save transaction:', result.error);
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Error saving SMS to backend:', error);
+    return null;
+  }
+};
+
+// Batch save multiple transactions
+export const batchSaveSMS = async (parsedSMSArray, userId) => {
+  const results = [];
+  for (const sms of parsedSMSArray) {
+    const result = await saveSMSToBackend(sms, userId);
+    if (result) {
+      results.push(result);
+    }
+  }
+  console.log(`💾 Saved ${results.length}/${parsedSMSArray.length} transactions to backend`);
+  return results;
+};
