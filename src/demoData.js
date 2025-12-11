@@ -1,7 +1,8 @@
 // Demo SMS data for gig workers hackathon presentation
 // Simulates real-world SMS patterns for delivery riders, drivers, etc.
+// These are RAW SMS messages that will be parsed by smsParser.js
 
-export const DEMO_SMS = [
+export const DEMO_SMS_RAW = [
   // ===== EARNINGS (Swiggy, Zomato, Uber, etc.) =====
   {
     sender: 'SWIGGY',
@@ -87,6 +88,9 @@ export const DEMO_SMS = [
   },
 ];
 
+// Pre-parsed demo transactions (properly formatted)
+export const DEMO_SMS = DEMO_SMS_RAW;
+
 // Generate random realistic demo SMS
 export const generateRandomDemoSMS = () => {
   const templates = [
@@ -147,35 +151,41 @@ export const GIG_WORKER_STORIES = {
 };
 
 // Demo insights for presentation
-export const DEMO_INSIGHTS = [
-  {
-    type: 'earning_spike',
-    message: '🔥 You earned 32% more this weekend! Saturday 7-10 PM is your golden hour.',
-    color: '#00b894',
-  },
-  {
-    type: 'expense_alert',
-    message: '⚠️ Fuel spending is 40% higher this week. Consider reducing 2 trips to save ₹180.',
-    color: '#ff7675',
-  },
-  {
-    type: 'goal_progress',
-    message: '✨ You are 68% to your ₹5000 savings goal! Just ₹1600 more to go.',
-    color: '#6c5ce7',
-  },
-  {
-    type: 'cashback',
-    message: '💰 You got ₹240 cashback this month. Use it for next recharge!',
-    color: '#fdcb6e',
-  },
-  {
-    type: 'shift_advice',
-    message: '📊 Lunch shift (12-3 PM) gives you 28% better earnings. Try 2 more hours!',
-    color: '#74b9ff',
-  },
-  {
-    type: 'festival_prep',
-    message: '🎊 Diwali in 2 weeks! Start saving ₹100/day for festival expenses.',
-    color: '#fd79a8',
-  },
-];
+export const DEMO_INSIGHTS = {
+  summary: '🔥 You earned 32% more this weekend! Saturday 7-10 PM is your golden hour. Keep up the momentum!',
+  totalEarned: 4957,
+  totalSpent: 3285,
+  totalTransactions: 12,
+  insights: [
+    {
+      type: 'earning_spike',
+      message: '🔥 You earned 32% more this weekend! Saturday 7-10 PM is your golden hour.',
+      color: '#00b894',
+    },
+    {
+      type: 'expense_alert',
+      message: '⚠️ Fuel spending is 40% higher this week. Consider reducing 2 trips to save ₹180.',
+      color: '#ff7675',
+    },
+    {
+      type: 'goal_progress',
+      message: '✨ You are 68% to your ₹5000 savings goal! Just ₹1600 more to go.',
+      color: '#6c5ce7',
+    },
+    {
+      type: 'cashback',
+      message: '💰 You got ₹240 cashback this month. Use it for next recharge!',
+      color: '#fdcb6e',
+    },
+    {
+      type: 'shift_advice',
+      message: '📊 Lunch shift (12-3 PM) gives you 28% better earnings. Try 2 more hours!',
+      color: '#74b9ff',
+    },
+    {
+      type: 'festival_prep',
+      message: '🎊 Diwali in 2 weeks! Start saving ₹100/day for festival expenses.',
+      color: '#fd79a8',
+    },
+  ]
+};

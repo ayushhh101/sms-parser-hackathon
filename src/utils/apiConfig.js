@@ -23,11 +23,11 @@ const getLocalIP = async () => {
     
     // You can manually set your IP here for now
     // In a real app, you'd want to use react-native-network-info or similar
-    return '192.168.29.218'; // Your current IP
+    return '10.0.49.44'; // Your current IP
     
   } catch (error) {
     console.log('Could not detect IP, using fallback');
-    return '192.168.29.218'; // Fallback to your current IP
+    return '10.0.49.44'; // Fallback to your current IP
   }
 };
 
@@ -40,7 +40,7 @@ export const getApiBaseUrl = async () => {
 };
 
 // For immediate use (synchronous)
-export const API_BASE_URL = 'http://192.168.29.218:3000/api';
+export const API_BASE_URL = 'http://10.0.49.44:3000/api';
 
 // Instructions for teammates:
 // 1. Check your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)
@@ -48,6 +48,6 @@ export const API_BASE_URL = 'http://192.168.29.218:3000/api';
 // 3. Or set REACT_NATIVE_API_IP environment variable
 
 export const getApiUrl = (endpoint) => {
-  const ip = process.env.REACT_NATIVE_API_IP || '192.168.29.218';
+  const ip = process.env.REACT_NATIVE_API_IP || '10.0.49.44';
   return `http://${ip}:3000/api${endpoint}`;
 };
