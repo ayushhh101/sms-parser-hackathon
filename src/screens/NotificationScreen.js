@@ -64,13 +64,13 @@ export default function NotificationsScreen() {
   const handleMarkAllRead = async () => {
     if (!userId) return;
 
-    // 1. Optimistic Update: Immediately make everything look read in the UI
+    //  Optimistic Update: Immediately make everything look read in the UI
     setNotifications(prevNotifications => 
       prevNotifications.map(n => ({ ...n, isRead: true }))
     );
 
     try {
-      // 2. Call the Backend
+      //  Call the Backend
       const response = await fetch(getApiUrl(`/notifications/mark-read/${userId}`), {
         method: 'PUT',
       });
@@ -182,22 +182,34 @@ export default function NotificationsScreen() {
       );
     }
 
-    // TRANSACTION CARD 
+    // TRANSACTION CARD: color tag red for negative amounts, green otherwise
     if (item.type === 'transaction') {
+      const amountStr = item.meta?.amount || '';
+      const isExpense = amountStr.includes('-');
+
       return (
-        <View className="bg-[#1E293B] p-4 rounded-2xl mb-3 border-l-4 border-emerald-500 relative">
+        <View className={`bg-[#1E293B] p-4 rounded-2xl mb-3 border-l-4 ${isExpense ? 'border-red-500' : 'border-emerald-500'} relative`}>
           <UnreadDot />
           <View className="flex-row items-center mb-2">
             <View className="w-8 h-8 rounded-full bg-slate-700 items-center justify-center mr-3">
               <MaterialCommunityIcons name="bank-transfer" size={16} color="#60A5FA" />
             </View>
             <View className="flex-1">
-               <Text className="text-white font-bold text-base">{item.title}</Text>
+               <Text className={`${isExpense ? 'text-red-300' : 'text-emerald-300'} text-xs font-bold`}>{item.title}</Text>
                <Text className="text-slate-500 text-xs">{item.time}</Text>
             </View>
           </View>
-          <Text className="text-slate-400 text-xs mb-3 font-bold">{item.meta?.tag || "Transaction"}</Text>
-          
+
+          <View className="flex-row items-center space-x-2 mb-2">
+            <View className={`${isExpense ? 'bg-red-500/20' : 'bg-emerald-500/20'} px-2 py-1 rounded`}>
+              <Text className={`${isExpense ? 'text-red-400' : 'text-emerald-400'} text-xs font-bold`}>{item.meta?.tag || 'Transaction'}</Text>
+            </View>
+
+            <View className={`${isExpense ? 'bg-red-500/10' : 'bg-emerald-500/10'} px-2 py-1 rounded`}>
+              
+            </View>
+          </View>
+
           <View className="bg-slate-700/50 px-2 py-1 rounded self-start">
              <Text className="text-slate-300 text-xs">Auto-tracked</Text>
           </View>

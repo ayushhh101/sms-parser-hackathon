@@ -6,7 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 // --- HELPERS ---
 
 const StatBox = ({ icon, value, label, color }) => (
-  <View className="bg-[#1E293B] flex-1 p-3 rounded-2xl items-center border border-slate-700/50">
+  <View className="bg-[#1E293B] p-3 rounded-2xl items-center border border-slate-700/50 w-[45%]" style={{ overflow: 'hidden' }}>
     <MaterialCommunityIcons name={icon} size={20} color={color} style={{marginBottom: 4}} />
     <Text className="text-white font-bold text-lg">{value}</Text>
     <Text className="text-slate-400 text-[10px] text-center">{label}</Text>
@@ -57,16 +57,6 @@ const SettingRow = ({ icon, label, subLabel, type = 'arrow', value, onToggle, on
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  
-  
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  
-
-  const LANGUAGES = ["Hindi (हिंदी)", "English", "Marathi (मराठी)"];
-  const [selectedLang, setSelectedLang] = useState("Hindi (हिंदी)");
-  const [isLangOpen, setIsLangOpen] = useState(false); // for dropdown
-  
-  
   const [swiggyConnected, setSwiggyConnected] = useState(true);
   const [uberConnected, setUberConnected] = useState(true);
   const [bankConnected, setBankConnected] = useState(true);
@@ -97,7 +87,7 @@ export default function ProfileScreen() {
                <MaterialCommunityIcons name="pencil-circle" size={24} color="#10B981" />
              </View>
           </View>
-          <Text className="text-white text-2xl font-bold">Raju Sharma</Text>
+          <Text className="text-white text-2xl font-bold">Sushant Shahane</Text>
           <Text className="text-slate-400 text-sm mb-3">Swiggy & Uber Delivery Partner</Text>
           
           <View className="flex-row space-x-3">
@@ -116,65 +106,24 @@ export default function ProfileScreen() {
         <View className="flex-row justify-between gap-3 mb-8">
           <StatBox icon="trending-up" value="₹28,450" label="This Month" color="#10B981" />
           <StatBox icon="calendar-check" value="156" label="Days Active" color="#60A5FA" />
-          <StatBox icon="trophy-variant" value="23" label="Badges" color="#Facc15" />
         </View>
 
         {/*  QUICK ACCESS */}
         <View className="mb-8">
           <Text className="text-white font-bold text-lg mb-4">Quick Access</Text>
-          <View className="bg-[#1E293B] p-5 rounded-3xl flex-row justify-between">
-            <QuickAccessItem icon="bullseye-arrow" label="Goals" color="#F472B6" bg="#F472B620" />
-            <QuickAccessItem icon="chart-timeline-variant" label="Heatmap" color="#60A5FA" bg="#60A5FA20" />
-            <QuickAccessItem icon="book-open-page-variant" label="Stories" color="#A78BFA" bg="#A78BFA20" />
-            <QuickAccessItem icon="alert-decagram" label="Risks" color="#Facc15" bg="#Facc1520" />
-          </View>
-        </View>
-
-        {/* coach */}
-        <View className="mb-8">
-          <Text className="text-white font-bold text-lg mb-2">Coach Preferences</Text>
-          <View className="bg-[#1E293B] px-4 rounded-3xl">
-            <SettingRow icon="emoticon-happy-outline" label="Coach Persona" subLabel="Friendly" />
-            
-            {/* language dropdown*/}
-            <SettingRow 
-              icon="web" 
-              label="Language" 
-              subLabel={selectedLang} 
-              type={isLangOpen ? "chevron-up" : "chevron-down"} 
-              onPress={() => setIsLangOpen(!isLangOpen)}
-            />
-            
-            {/* language option*/}
-            {isLangOpen && (
-              <View className="pl-14 pb-2 border-b border-slate-800/50">
-                {LANGUAGES.map((lang) => (
-                  <TouchableOpacity 
-                    key={lang} 
-                    onPress={() => {
-                      setSelectedLang(lang);
-                      setIsLangOpen(false);
-                    }}
-                    className="flex-row items-center justify-between py-2 pr-4"
-                  >
-                    <Text className={`text-sm ${lang === selectedLang ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                      {lang}
-                    </Text>
-                    {lang === selectedLang && <Ionicons name="checkmark" size={16} color="#10B981" />}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            <SettingRow 
-              icon="microphone-outline" 
-              label="Voice Input" 
-              subLabel={voiceEnabled ? "Enabled" : "Disabled"}
-              type="toggle" 
-              value={voiceEnabled} 
-              onToggle={() => setVoiceEnabled(!voiceEnabled)} 
-              color="#10B981"
-            />
+          <View className="bg-[#1E293B] p-5 rounded-3xl gap-4">
+            <View className="flex-row justify-between">
+              <QuickAccessItem icon="bullseye-arrow" label="Goals" color="#F472B6" bg="#F472B620" />
+              <QuickAccessItem icon="chart-timeline-variant" label="Heatmap" color="#60A5FA" bg="#60A5FA20" />
+              <QuickAccessItem icon="book-open-page-variant" label="Stories" color="#A78BFA" bg="#A78BFA20" />
+              <QuickAccessItem icon="alert-decagram" label="Risks" color="#Facc15" bg="#Facc1520" />
+            </View>
+            <View className="flex-row justify-between">
+              <QuickAccessItem icon="wallet" label="Savings" color="#10B981" bg="#10B98120" />
+              <QuickAccessItem icon="trending-down" label="Budget" color="#EF4444" bg="#EF444420" />
+              <QuickAccessItem icon="gift" label="Rewards" color="#F97316" bg="#F9731620" />
+              <QuickAccessItem icon="cog" label="Settings" color="#64748B" bg="#64748B20" />
+            </View>
           </View>
         </View>
 

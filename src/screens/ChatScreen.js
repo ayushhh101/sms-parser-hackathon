@@ -21,7 +21,7 @@ export default function CoachScreen() {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      text: "Namaste Raju! 👋 Aaj ka din kaisa raha? Maine dekha ki aapne subah se ₹2,340 kamaye hain."
+      text: "Namaste Rahul! 👋 Aaj ka din kaisa raha? Maine dekha ki aapne subah se ₹2,340 kamaye hain."
     }
   ]);
 

@@ -9,7 +9,7 @@ import { getApiUrl } from '../utils/apiConfig';
 const ActionButton = ({ icon, color, label, onPress }) => (
   <TouchableOpacity 
     onPress={onPress}
-    className="bg-[#1E293B] w-[30%] aspect-square rounded-2xl items-center justify-center space-y-2"
+    className="bg-[#1E293B] w-[45%] aspect-square rounded-2xl items-center justify-center space-y-2"
   >
     <View className="p-2 rounded-full bg-slate-800 border border-slate-700">
       <Ionicons name={icon} size={24} color={color} />
@@ -173,9 +173,9 @@ export default function DashboardScreen() {
         <View className="flex-row justify-between items-center mb-6">
           <View>
             <Text className="text-gray-400 text-sm font-medium">
-              Good Evening, {userData?.name || 'User'} 👋
+              Good Evening, {userData?.name || 'User'} 
             </Text>
-            <Text className="text-white text-2xl font-bold mt-1">Your Money Dashboard</Text>
+            <Text className="text-white text-2xl font-bold mt-1">Dashboard</Text>
           </View>
           <View className="flex-row items-center">
             <TouchableOpacity 
@@ -195,81 +195,77 @@ export default function DashboardScreen() {
         </View>
 
         {/* BALANCE & UNALLOCATED CARD */}
-        <View className="bg-[#10B981] rounded-3xl p-6 mb-6 shadow-lg">
+        <View className="bg-[#10B981] rounded-3xl p-6 mb-6 shadow-lg" style={{ overflow: 'hidden' }}>
           
-          {/* TOP ROW: Split View */}
-          <View className="flex-row justify-between items-start mb-6">
+          {/* TOP ROW: Split View - Two columns */}
+          <View className="flex-row justify-between items-start mb-8">
             
             {/* LEFT: Today's Balance */}
-            <View>
-              <Text className="text-emerald-100 text-xs font-medium uppercase tracking-wider">
+            <View className="flex-1 pr-4">
+              <Text className="text-emerald-50 text-xs font-semibold uppercase tracking-widest opacity-90">
                 Today's Balance
               </Text>
-              <Text className="text-white text-3xl font-bold mt-1">
+              <Text className="text-white text-2xl font-black mt-2 mb-1">
                 ₹{todayBalance.toLocaleString('en-IN')}
               </Text>
-              <Text className="text-emerald-200 text-[10px]">
-                {todayBalance >= 0 ? 'Profit today' : 'Overspent today'}
-              </Text>
+              <View className="flex-row items-center mt-1">
+                <View className={`w-2 h-2 rounded-full mr-2 ${todayBalance >= 0 ? 'bg-emerald-100' : 'bg-red-200'}`} />
+                <Text className={`text-emerald-50 text-xs font-medium opacity-80 ${todayBalance >= 0 ? '' : 'text-red-100'}`}>
+                  {todayBalance >= 0 ? 'Profit today' : 'Overspent today'}
+                </Text>
+              </View>
             </View>
 
-            {/* RIGHT: Unallocated Cash (Aligned Right) */}
-            <View className="items-end"> 
-               <Text className="text-emerald-100 text-xs font-medium uppercase tracking-wider">
+            {/* RIGHT: Unallocated Cash */}
+            <View className="flex-1 pl-4 border-l border-emerald-400/40"> 
+               <Text className="text-emerald-50 text-xs font-semibold uppercase tracking-widest opacity-90">
                  Safe to Save
                </Text>
-               <Text className="text-white text-3xl font-bold mt-1">
+               <Text className="text-white text-2xl font-black mt-2">
                  ₹{unallocatedCash.toLocaleString('en-IN')}
                </Text>
-               
-               {/* Subtext with Icon to match the height of the left side */}
-               <View className="flex-row items-center mt-0.5">
-                 <FontAwesome5 name="wallet" size={10} color="#a7f3d0" style={{marginRight: 4}}/>
-                 <Text className="text-emerald-200 text-[10px]">Available</Text>
+               <View className="flex-row items-center mt-2">
+                 <FontAwesome5 name="wallet" size={11} color="#f0fdf4" style={{marginRight: 6, opacity: 0.8}}/>
+                 <Text className="text-emerald-50 text-xs font-medium opacity-80">Available to use</Text>
                </View>
             </View>
           </View>
           
           {/* BOTTOM ROW: Today's Breakdown */}
-          <View className="flex-row justify-between pt-4 border-t border-emerald-500/30">
+          <View className="flex-row justify-between pt-6 border-t border-emerald-400/40 gap-3">
             {/* Earned */}
-            <View className="flex-row items-center">
-              <View className="bg-emerald-100/20 p-1.5 rounded-full mr-2">
-                <Ionicons name="arrow-down" size={12} color="#fff" />
+            <View className="flex-1 items-center">
+              <View className="bg-white/20 p-2.5 rounded-full mb-2">
+                <Ionicons name="arrow-down" size={14} color="#fff" />
               </View>
-              <View>
-                <Text className="text-emerald-100 text-[14px]">Earned</Text>
-                <Text className="text-white font-bold">₹{todayEarned.toLocaleString('en-IN')}</Text>
-              </View>
+              <Text className="text-emerald-50 text-[11px] font-semibold uppercase opacity-80">Earned</Text>
+              <Text className="text-white font-black text-base mt-1">₹{todayEarned.toLocaleString('en-IN')}</Text>
             </View>
 
             {/* Spent */}
-            <View className="flex-row items-center">
-              <View className="bg-red-500/20 p-1.5 rounded-full mr-2">
-                <Ionicons name="arrow-up" size={12} color="#fff" />
+            <View className="flex-1 items-center">
+              <View className="bg-red-600/40 p-2.5 rounded-full mb-2">
+                <Ionicons name="arrow-up" size={14} color="#fff" />
               </View>
-              <View>
-                <Text className="text-emerald-100 text-[14px]">Spent</Text>
-                <Text className="text-white font-bold">₹{todaySpent.toLocaleString('en-IN')}</Text>
-              </View>
+              <Text className="text-emerald-50 text-[11px] font-semibold uppercase opacity-80">Spent</Text>
+              <Text className="text-white font-black text-base mt-1">₹{todaySpent.toLocaleString('en-IN')}</Text>
             </View>
 
-            {/* Saved (Today's specific savings) */}
-            <View className="flex-row items-center">
-               <View className="bg-yellow-500/20 p-1.5 rounded-full mr-2">
-                <FontAwesome5 name="piggy-bank" size={10} color="#fff" />
+            {/* Saved */}
+            <View className="flex-1 items-center">
+               <View className="bg-yellow-400/40 p-2.5 rounded-full mb-2">
+                <FontAwesome5 name="piggy-bank" size={12} color="#fff" />
               </View>
-              <View>
-                <Text className="text-emerald-100 text-[14px]">Saved</Text>
-                <Text className="text-white font-bold">₹{stats.todaySaved || 0}</Text>
-              </View>
+              <Text className="text-emerald-50 text-[11px] font-semibold uppercase opacity-80">Saved</Text>
+              <Text className="text-white font-black text-base mt-1">₹{stats.todaySaved || 0}</Text>
             </View>
           </View>
         </View>
 
         {/* QUICK ACTIONS ROW */}
-        <View className="flex-row justify-between mb-6">
-          <ActionButton 
+        <View className="flex-row w-full justify-evenly mb-6 px-4">
+          
+          <ActionButton className=""
             icon="arrow-down-outline" 
             color="#10B981" 
             label="Received" 
@@ -281,12 +277,7 @@ export default function DashboardScreen() {
             label="Paid" 
             onPress={() => navigation.navigate('SMSParser')} 
           />
-          <ActionButton 
-            icon="swap-horizontal" 
-            color="#3B82F6" 
-            label="Transfer" 
-            onPress={() => navigation.navigate('SMSParser')} 
-          />
+          
         </View>
 
         {/*  SPENDING ALERT */}
@@ -329,15 +320,15 @@ export default function DashboardScreen() {
         </View>
 
         {/* LIST SECTION */}
-        <View className="flex-row justify-between items-center mb-4">
+        {/* <View className="flex-row justify-between items-center mb-4">
           <Text className="text-white font-bold text-lg">Auto-Captured (SMS)</Text>
           <TouchableOpacity onPress={() => navigation.navigate('SMSParser')}>
              <Text className="text-emerald-500 text-sm">View All</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* List Item */}
-        <View className="bg-[#1E293B] p-4 rounded-xl flex-row items-center mb-20">
+        {/* <View className="bg-[#1E293B] p-4 rounded-xl flex-row items-center mb-20">
           <View className="bg-slate-700 h-10 w-10 rounded-full items-center justify-center mr-3">
              <MaterialCommunityIcons name="motorbike" size={20} color="#F472B6" />
           </View>
@@ -346,7 +337,7 @@ export default function DashboardScreen() {
             <Text className="text-gray-500 text-xs">Via SMS • 2:34 PM</Text>
           </View>
           <Text className="text-emerald-400 font-bold text-base">+₹847</Text>
-        </View>
+        </View> */}
 
       </ScrollView>
     </SafeAreaView>

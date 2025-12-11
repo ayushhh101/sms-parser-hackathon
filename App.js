@@ -21,6 +21,7 @@ import PermissionsScreen from './src/screens/PermissionsScreen';
 import SMSParserScreen from './src/screens/SMSParserScreen';
 import MoneyStoryScreen from './src/screens/MoneyStoryScreen';
 import NotificationScreen from './src/screens/NotificationScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -135,6 +136,18 @@ function HomeTabs() {
           tabBarLabel: 'Story'
         }}
       />
+
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen} 
+        options={{
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => (
+                <MaterialCommunityIcons name="account-circle" color={color} size={size} />
+            ),
+            tabBarLabel: "Profile"
+        }}
+    />
 
       
       
